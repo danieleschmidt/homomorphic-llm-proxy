@@ -1,0 +1,52 @@
+{
+  "_type": "https://in-toto.io/Statement/v0.1",
+  "predicateType": "https://slsa.dev/provenance/v0.2",
+  "subject": [
+    {
+      "name": "homomorphic-llm-proxy",
+      "digest": {
+        "sha256": "placeholder-to-be-generated-by-build"  
+      }
+    }
+  ],
+  "predicate": {
+    "builder": {
+      "id": "https://github.com/your-org/homomorphic-llm-proxy/.github/workflows/release.yml@refs/heads/main"
+    },
+    "buildType": "https://github.com/Attestations/GitHubActionsWorkflow@v1",
+    "invocation": {
+      "configSource": {
+        "uri": "git+https://github.com/your-org/homomorphic-llm-proxy@refs/heads/main",
+        "digest": {
+          "sha1": "placeholder-git-commit-hash"
+        },
+        "entryPoint": ".github/workflows/release.yml"
+      },
+      "parameters": {},
+      "environment": {
+        "github_actor": "automated-release",
+        "github_event_name": "push",
+        "github_ref": "refs/tags/v*"
+      }
+    },
+    "metadata": {
+      "buildInvocationId": "placeholder-run-id",
+      "buildStartedOn": "placeholder-timestamp",
+      "buildFinishedOn": "placeholder-timestamp",
+      "completeness": {
+        "parameters": true,
+        "environment": false,
+        "materials": true
+      },
+      "reproducible": false
+    },
+    "materials": [
+      {
+        "uri": "git+https://github.com/your-org/homomorphic-llm-proxy@refs/heads/main",
+        "digest": {
+          "sha1": "placeholder-git-commit-hash"
+        }
+      }
+    ]
+  }
+}

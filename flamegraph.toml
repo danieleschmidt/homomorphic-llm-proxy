@@ -1,0 +1,85 @@
+# Flamegraph configuration for performance profiling
+# Generates flame graphs for CPU and memory usage analysis
+
+[profiling]
+# Profiling modes
+cpu_profiling = true              # Enable CPU profiling
+memory_profiling = true           # Enable memory profiling
+gpu_profiling = true             # Enable GPU profiling (NVIDIA only)
+
+# Sampling configuration
+sample_rate = 99                 # Sample at 99 Hz (good balance of detail/overhead)
+duration_seconds = 30            # Profile for 30 seconds by default
+output_dir = "target/flamegraphs"
+
+# Process filtering
+target_processes = [
+    "fhe-llm-proxy",            # Main service
+    "gpu-worker",               # GPU worker processes
+    "key-manager"               # Key management service
+]
+
+[cpu]
+# CPU profiling specific settings
+include_kernel = true           # Include kernel samples
+include_user = true            # Include userspace samples
+resolve_symbols = true         # Resolve function symbols
+collapse_recursion = true     # Collapse recursive calls
+
+# Focus on FHE-specific operations
+focus_functions = [
+    "encrypt_ckks",
+    "decrypt_ckks", 
+    "homomorphic_multiply",
+    "gpu_kernel_*",
+    "key_generation",
+    "noise_management"
+]
+
+# Ignore noisy functions
+ignore_functions = [
+    "malloc",
+    "free",
+    "__pthread_*",
+    "epoll_wait"
+]
+
+[memory]
+# Memory profiling configuration
+track_allocations = true       # Track memory allocations
+track_deallocations = true     # Track deallocations
+show_call_stacks = true       # Show allocation call stacks
+minimum_allocation_size = 1024 # Only track allocations >= 1KB
+
+# GPU memory tracking
+gpu_memory_tracking = true     # Track CUDA memory operations
+track_gpu_transfers = true     # Track host-device transfers
+
+[output]
+# Output format configuration
+formats = ["svg", "html", "txt"]
+svg_width = 1200              # SVG width in pixels
+svg_height = 800              # SVG height in pixels
+color_scheme = "hot"          # Color scheme (hot, mem, io)
+
+# Interactive features
+enable_search = true          # Enable function search in HTML
+enable_zoom = true           # Enable zoom functionality
+show_percentage = true       # Show percentage of total time
+
+[differential]
+# Differential profiling between versions
+enable = true
+baseline_dir = "target/flamegraphs/baseline"
+comparison_dir = "target/flamegraphs/current"
+diff_threshold = 5.0         # Show differences >= 5% 
+
+[integration]
+# Integration with benchmarking tools
+cargo_bench_integration = true
+criterion_integration = true
+perf_integration = true      # Linux perf integration
+
+# Continuous profiling
+ci_profiling = false         # Disable in CI by default (expensive)
+nightly_profiling = true     # Enable for nightly builds

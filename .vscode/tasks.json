@@ -1,0 +1,292 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build (Release)",
+            "type": "cargo",
+            "command": "build",
+            "args": ["--release", "--features", "gpu"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "Test (All Features)",
+            "type": "cargo",
+            "command": "nextest",
+            "args": ["run", "--all-features", "--profile", "ci"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "Test (GPU Only)",
+            "type": "cargo",
+            "command": "nextest", 
+            "args": ["run", "--profile", "gpu"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "Security Audit",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["audit", "--config", ".cargo/audit.toml"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Dependency Check",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["deny", "check"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Format Code",
+            "type": "cargo",
+            "command": "fmt",
+            "args": ["--all"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Clippy (Strict)",
+            "type": "cargo",
+            "command": "clippy",
+            "args": [
+                "--all-targets",
+                "--all-features",
+                "--",
+                "-D", "warnings",
+                "-D", "clippy::all",
+                "-W", "clippy::pedantic"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "Benchmark (Quick)",
+            "type": "cargo",
+            "command": "bench",
+            "args": ["--bench", "fhe_operations", "--", "--quick"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Benchmark (Full)",
+            "type": "cargo",
+            "command": "bench",
+            "args": ["--all-features"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Coverage Report",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["tarpaulin", "--out", "html", "--output-dir", "target/coverage"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Mutation Testing",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["mutants", "--config", "mutation-testing.toml"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Generate Flamegraph",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["flamegraph", "--bin", "fhe-llm-proxy", "--", "--bench-mode"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Python Tests",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "pytest", "python/tests/", "-v", "--cov=fhe_llm_proxy"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Python Lint",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "ruff", "check", "python/"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Python Format",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "black", "python/"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Docker Build",
+            "type": "shell",
+            "command": "docker",
+            "args": ["build", "-t", "fhe-llm-proxy:dev", "."],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Docker Run (Development)",
+            "type": "shell",
+            "command": "docker",
+            "args": [
+                "run", "--rm", "-it",
+                "--gpus", "all",
+                "-p", "8080:8080",
+                "-p", "9090:9090",
+                "-e", "RUST_LOG=debug",
+                "fhe-llm-proxy:dev"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Load Test (K6)",
+            "type": "shell",
+            "command": "k6",
+            "args": ["run", "load-testing/k6-config.js"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Generate SBOM",
+            "type": "shell",
+            "command": "cargo",
+            "args": ["sbom", "--config", "sbom.toml"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Full CI Check",
+            "type": "shell",
+            "command": "bash",
+            "args": ["-c", "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo nextest run --all-features && cargo audit && cargo deny check"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "dependsOrder": "sequence"
+        }
+    ]
+}

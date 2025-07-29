@@ -1,0 +1,164 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug FHE Proxy (Development)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/fhe-llm-proxy",
+            "args": [
+                "--config", "config/development.toml",
+                "--log-level", "debug"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "RUST_LOG",
+                    "value": "fhe_llm_proxy=debug,info"
+                },
+                {
+                    "name": "RUST_BACKTRACE",
+                    "value": "1"
+                },
+                {
+                    "name": "FHE_TEST_MODE",
+                    "value": "true"
+                }
+            ],
+            "sourceLanguages": ["rust"],
+            "console": "integratedTerminal",
+            "preLaunchTask": "Build (Release)"
+        },
+        {
+            "name": "Debug GPU Worker",
+            "type": "lldb", 
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/gpu-worker",
+            "args": [
+                "--device-id", "0",
+                "--batch-size", "8"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "CUDA_VISIBLE_DEVICES",
+                    "value": "0"
+                },
+                {
+                    "name": "RUST_LOG",
+                    "value": "gpu_worker=debug"
+                }
+            ],
+            "sourceLanguages": ["rust"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Key Manager",
+            "type": "lldb",
+            "request": "launch", 
+            "program": "${workspaceFolder}/target/debug/key-manager",
+            "args": [
+                "--vault-url", "http://localhost:8200",
+                "--key-rotation-hours", "1"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "VAULT_TOKEN",
+                    "value": "dev-token"
+                },
+                {
+                    "name": "RUST_LOG",
+                    "value": "key_manager=debug"
+                }
+            ],
+            "sourceLanguages": ["rust"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Tests (Current File)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "cargo",
+            "args": [
+                "test",
+                "--bin", "${fileBasenameNoExtension}",
+                "--", "--nocapture"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "RUST_LOG",
+                    "value": "debug"
+                },
+                {
+                    "name": "RUST_BACKTRACE",
+                    "value": "full"
+                }
+            ],
+            "sourceLanguages": ["rust"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Benchmarks",
+            "type": "lldb",
+            "request": "launch", 
+            "program": "cargo",
+            "args": [
+                "bench",
+                "--bench", "fhe_operations",
+                "--", "--profile-time", "10"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "RUST_LOG",
+                    "value": "criterion=debug"
+                }
+            ],
+            "sourceLanguages": ["rust"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Attach to Running Process",
+            "type": "lldb",
+            "request": "attach",
+            "program": "${workspaceFolder}/target/debug/fhe-llm-proxy",
+            "pid": "${command:pickProcess}",
+            "sourceLanguages": ["rust"]
+        },
+        {
+            "name": "Debug Python Client",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/python/examples/basic_usage.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/python",
+                "FHE_PROXY_URL": "http://localhost:8080",
+                "LOG_LEVEL": "DEBUG"
+            },
+            "args": [
+                "--test-mode",
+                "--verbose"
+            ]
+        },
+        {
+            "name": "Debug Python Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${workspaceFolder}/python/tests/",
+                "-v", "-s",
+                "--tb=short"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/python"
+            }
+        }
+    ]
+}

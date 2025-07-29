@@ -1,0 +1,118 @@
+# Mutation testing configuration for cargo-mutants
+# Tests the quality of tests by introducing bugs and checking if tests catch them
+
+[mutants]
+# Mutation testing settings
+timeout_multiplier = 5        # Allow 5x normal test time for mutants
+test_timeout = "300s"         # Maximum time per mutant test
+output = "target/mutants"     # Output directory for results
+
+# Files to include in mutation testing
+include = [
+    "src/**/*.rs",
+    "crates/*/src/**/*.rs"
+]
+
+# Files to exclude from mutation testing
+exclude = [
+    "src/bin/**/*.rs",        # Binary entry points - less critical
+    "src/examples/**/*.rs",   # Example code
+    "**/tests/**/*.rs",       # Test files themselves
+    "**/benches/**/*.rs",     # Benchmark code
+    "src/generated/**/*.rs"   # Generated code
+]
+
+# Functions to skip mutation testing (use sparingly)
+skip_functions = [
+    # Core cryptographic functions - too critical and well-tested
+    "generate_private_key",
+    "encrypt_with_ckks", 
+    "decrypt_with_ckks",
+    
+    # GPU kernel functions - hardware-specific and hard to test
+    "cuda_encrypt_kernel",
+    "gpu_homomorphic_multiply",
+    
+    # Logging and debugging functions
+    "debug_print_ciphertext",
+    "log_encryption_metadata"
+]
+
+# Modules to focus mutation testing on
+priority_modules = [
+    "fhe",                    # Core FHE operations
+    "privacy",               # Privacy budget management  
+    "key_management",        # Key generation and rotation
+    "api",                   # Public API surface
+    "validation"             # Input validation
+]
+
+[test_execution]
+# How to run tests for mutation testing
+command = "cargo nextest run"
+test_dir = "."
+baseline_timeout = "60s"
+
+# Environment variables for testing
+env = [
+    "RUST_TEST_THREADS=1",           # Sequential for mutation testing
+    "FHE_TEST_MODE=mutation",        # Special test mode flag
+    "CUDA_VISIBLE_DEVICES=0"         # Use only first GPU for consistency
+]
+
+[reporting]
+# Report generation settings
+format = ["json", "html", "summary"]
+output_dir = "target/mutation-reports"
+
+# Thresholds for mutation testing quality
+minimum_coverage = 0.8              # 80% mutation coverage minimum
+failing_threshold = 0.9             # 90% of mutants should be caught
+
+# Report sections to include
+include_caught = true               # Show mutants that were caught
+include_uncaught = true            # Show mutants that escaped
+include_timeouts = true            # Show mutants that timed out
+include_build_failures = false    # Skip mutants that don't compile
+
+[mutation_strategies]
+# Types of mutations to apply
+arithmetic = true                  # +, -, *, / mutations
+logical = true                    # &&, ||, ! mutations
+relational = true                 # <, >, ==, != mutations
+conditional = true                # if/else mutations
+loop = true                      # loop boundary mutations
+function_call = false            # Function call mutations (risky)
+
+# FHE-specific mutation strategies
+[mutation_strategies.cryptographic]
+# Cryptographic parameter mutations
+modulus_mutations = true          # Change cryptographic moduli
+precision_mutations = true       # Change precision parameters
+noise_mutations = false          # Don't mutate noise parameters (dangerous)
+
+# Privacy-specific mutations
+[mutation_strategies.privacy]
+epsilon_mutations = true          # Change privacy budget values
+budget_check_mutations = true    # Mutate privacy budget checks
+consent_mutations = true         # Mutate consent checking logic
+
+[performance]
+# Performance optimization for mutation testing
+parallel_mutants = 4             # Run 4 mutants in parallel
+cache_builds = true              # Cache successful builds
+incremental_mode = true          # Only test changed functions
+
+# Memory limits
+max_memory_mb = 16384           # 16GB memory limit per mutant
+max_disk_mb = 51200            # 50GB disk limit
+
+[integration]
+# Integration with other tools
+coverage_tool = "tarpaulin"      # Use with cargo-tarpaulin
+ci_mode = true                  # Optimize for CI/CD
+fail_fast = false               # Continue even if some mutants fail
+
+# Git integration
+git_diff_mode = false           # Test only changed files (disabled for full coverage)
+baseline_branch = "main"        # Compare against main branch

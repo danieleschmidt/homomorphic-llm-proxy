@@ -1,0 +1,130 @@
+# Criterion.rs benchmark configuration
+# Provides statistical analysis of performance metrics
+
+[criterion]
+# Benchmark execution settings
+measurement_time = 10         # Measure for 10 seconds per benchmark
+warm_up_time = 3             # Warm up for 3 seconds
+sample_size = 100            # Number of samples to collect
+confidence_level = 0.95      # 95% confidence intervals
+
+# Output configuration
+output_directory = "target/criterion"
+plotting_backend = "gnuplot"  # Use gnuplot for charts
+html_reports = true          # Generate HTML reports
+
+[benchmarks]
+# FHE operation benchmarks
+[[benchmarks.fhe_operations]]
+name = "encryption_performance"
+functions = [
+    "encrypt_small_message",     # < 1KB messages
+    "encrypt_medium_message",    # 1-10KB messages  
+    "encrypt_large_message",     # > 10KB messages
+]
+parameters = [
+    "key_size",                  # 1024, 2048, 4096 bits
+    "security_level",            # 128, 192, 256 bits
+    "poly_modulus_degree"        # 8192, 16384, 32768
+]
+
+[[benchmarks.fhe_operations]]
+name = "homomorphic_operations" 
+functions = [
+    "homomorphic_add",
+    "homomorphic_multiply",
+    "homomorphic_rotate",
+    "bootstrap_ciphertext"
+]
+parameters = [
+    "ciphertext_size",
+    "noise_level",
+    "batch_size"
+]
+
+[[benchmarks.gpu_acceleration]]
+name = "gpu_vs_cpu_performance"
+functions = [
+    "cpu_encrypt",
+    "gpu_encrypt", 
+    "cpu_homomorphic_ops",
+    "gpu_homomorphic_ops"
+]
+parameters = [
+    "batch_size",               # 1, 8, 32, 128
+    "polynomial_degree",        # Performance vs security tradeoff
+    "gpu_memory_limit"         # Memory constraint scenarios
+]
+
+[[benchmarks.key_management]]
+name = "key_operations"
+functions = [
+    "generate_key_pair",
+    "key_rotation",
+    "key_derivation",
+    "key_serialization"
+]
+parameters = [
+    "key_type",                # CKKS, BFV, BGV
+    "security_parameter",      # 128, 192, 256
+    "key_size"                # Various key sizes
+]
+
+[[benchmarks.privacy_budget]]
+name = "privacy_mechanisms"
+functions = [
+    "differential_privacy_noise",
+    "privacy_budget_tracking",
+    "epsilon_calculation",
+    "budget_exhaustion_check"
+]
+parameters = [
+    "epsilon_value",           # Privacy budget values
+    "delta_value",            # Privacy parameters
+    "query_count"             # Number of queries
+]
+
+[regression_detection]
+# Performance regression detection
+enable = true
+baseline_dir = "benchmarks/baselines"
+regression_threshold = 10    # Alert on >10% regression
+improvement_threshold = 5    # Celebrate >5% improvement
+
+# Automatic baseline updates
+auto_update_baseline = false # Manual baseline updates only
+baseline_retention_days = 90 # Keep baselines for 90 days
+
+[reporting]
+# Advanced reporting options
+generate_comparison_reports = true
+include_system_info = true
+include_git_info = true
+
+# Export formats
+export_json = true           # Machine-readable results
+export_csv = true           # Spreadsheet analysis
+export_markdown = true      # Documentation integration
+
+[optimization_hints]
+# Performance optimization suggestions
+detect_bottlenecks = true
+suggest_improvements = true
+memory_usage_analysis = true
+gpu_utilization_analysis = true
+
+# Specific optimization areas
+fhe_parameter_optimization = true    # Suggest optimal FHE parameters
+batch_size_optimization = true       # Optimal batching strategies
+memory_layout_optimization = true    # Memory access patterns
+
+[integration]
+# CI/CD integration
+ci_mode = false             # Disable heavy benchmarks in CI
+nightly_benchmarks = true   # Full benchmarks in nightly builds
+pr_benchmarks = "quick"     # Quick benchmarks for PRs
+
+# External tool integration
+flamegraph_integration = true       # Generate flamegraphs
+perf_integration = true            # Linux perf integration
+valgrind_integration = true        # Memory profiling
