@@ -1,0 +1,139 @@
+# Cargo deny configuration for comprehensive dependency analysis
+[graph]
+# Include all dependency types in analysis
+all-features = false
+no-default-features = false
+
+[advisories]
+# Advisory database configuration
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/RustSec/advisory-db"]
+
+# Vulnerability handling
+vulnerability = "deny"
+unmaintained = "warn"
+unsound = "warn"
+notice = "warn"
+
+# Ignore specific advisories (use with caution)
+ignore = [
+    # Example: "RUSTSEC-2021-0145"  # Document reason for ignoring
+]
+
+# Severity threshold
+severity-threshold = "low"
+
+[bans]
+# Multiple versions of the same crate
+multiple-versions = "warn"
+
+# Wildcards in dependencies
+wildcards = "allow"
+
+# Highlight notable crates
+highlight = "simplest-path"
+
+# Workspace default members
+workspace-default-members = "allow"
+
+# External default features
+external-default-features = "allow"
+
+# Banned crates
+deny = [
+    # Cryptographically weak or deprecated crates
+    { name = "md5" },
+    { name = "sha1" },
+    { name = "rc4" },
+    
+    # Crates with known security issues
+    { name = "sodiumoxide", version = "<0.2.7" },
+    
+    # Crates that might leak sensitive information
+    { name = "env_logger", version = "<0.10" },
+]
+
+# Skip certain crates from analysis
+skip = [
+    # Example: { name = "some-dev-only-crate" }
+]
+
+# Skip certain features
+skip-tree = [
+    # Example: { name = "some-crate", version = "1.0" }
+]
+
+[licenses]
+# License policy
+unlicensed = "deny"
+allow-osi-fsf-free = "both"
+confidence-threshold = 0.8
+
+# Allowed licenses
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+]
+
+# Denied licenses (copyleft and restrictive)
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-1.0",
+    "AGPL-3.0",
+    "LGPL-2.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+    "EUPL-1.1",
+    "EUPL-1.2",
+]
+
+# Copyleft handling
+copyleft = "deny"
+
+# License exceptions for specific crates
+exceptions = [
+    # Example for necessary GPL dependencies (use very carefully)
+    # { allow = ["LGPL-2.1"], name = "some-essential-crate" }
+]
+
+# Private license handling
+private = {
+    ignore = true,
+    registries = []
+}
+
+[sources]
+# Unknown registry handling
+unknown-registry = "warn"
+unknown-git = "warn"
+
+# Allowed registries
+allow-registry = [
+    "https://github.com/rust-lang/crates.io-index"
+]
+
+# Allowed Git sources
+allow-git = [
+    # Microsoft SEAL for FHE
+    "https://github.com/microsoft/SEAL",
+    # NVIDIA cuDNN for GPU acceleration
+    "https://github.com/NVIDIA/cudnn-frontend",
+]
+
+# Allowed organization sources
+allow-org = {
+    # GitHub organizations
+    github = [
+        "rust-lang",
+        "tokio-rs",
+        "serde-rs",
+        "microsoft",  # For SEAL library
+    ]
+}
