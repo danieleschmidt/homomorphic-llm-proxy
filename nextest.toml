@@ -1,0 +1,113 @@
+# Configuration for cargo-nextest - next-generation test runner for Rust
+# Provides advanced test execution, filtering, and reporting capabilities
+
+[profile.default]
+# Test execution settings
+retries = 2                    # Retry flaky tests
+fail-fast = false             # Continue testing after first failure
+failure-output = "immediate"   # Show output immediately on failure
+success-output = "never"       # Don't show output for successful tests
+
+# Test discovery and filtering
+default-filter = "all"        # Run all tests by default
+threads = 0                   # Auto-detect number of test threads
+
+# Timeouts
+slow-timeout = { period = "300s", terminate-after = 2 }  # Slow test timeout
+leak-timeout = "100ms"        # Memory leak detection timeout
+
+[profile.default.junit]
+# JUnit XML output for CI integration
+path = "target/nextest/junit.xml"
+report-name = "fhe-llm-proxy-tests"
+store-success-output = false
+store-failure-output = true
+
+[profile.ci]
+# Optimized settings for CI/CD pipelines
+retries = 3
+fail-fast = false
+failure-output = "immediate-final"
+success-output = "never"
+
+# Parallel execution optimized for CI
+threads = 4
+test-threads = 4
+
+# Enhanced reporting for CI
+[profile.ci.junit]
+path = "target/nextest/ci-results.xml"
+report-name = "ci-test-results"
+store-success-output = false
+store-failure-output = true
+
+[profile.gpu]
+# Profile for GPU-accelerated tests (requires special hardware)
+retries = 1                   # GPU tests are more expensive to retry
+slow-timeout = { period = "600s", terminate-after = 1 }
+
+# Run GPU tests sequentially to avoid resource conflicts
+threads = 1
+test-threads = 1
+
+# Custom filter for GPU tests
+default-filter = "test(gpu_) or test(cuda_) or test(fhe_gpu)"
+
+[profile.performance]
+# Profile for performance benchmarks
+retries = 0                   # Performance tests shouldn't be retried
+fail-fast = true             # Stop on first performance regression
+failure-output = "final"      # Show full output for performance analysis
+
+# Single-threaded for consistent performance measurements
+threads = 1
+test-threads = 1
+
+# Extended timeout for performance tests
+slow-timeout = { period = "1800s", terminate-after = 1 }  # 30 minutes
+
+[profile.security]
+# Profile for security and cryptographic tests
+retries = 0                   # Security tests should be deterministic
+failure-output = "immediate-final"
+
+# Security tests may need more time for cryptographic operations
+slow-timeout = { period = "900s", terminate-after = 2 }  # 15 minutes
+
+# Filter for security-related tests
+default-filter = "test(security_) or test(crypto_) or test(key_) or test(fhe_)"
+
+[test-groups]
+# Group tests by functionality for better organization
+security = { max-threads = 2 }       # Limit concurrent security tests
+performance = { max-threads = 1 }    # Sequential performance tests  
+integration = { max-threads = 4 }    # Parallel integration tests
+unit = { max-threads = 0 }          # Auto-detect for unit tests
+
+# Special handling for GPU tests
+gpu = { max-threads = 1 }           # Sequential GPU tests
+
+[scripts]
+# Custom test scripts integration
+pre-test = [
+    "echo 'Starting FHE LLM Proxy test suite...'",
+    "mkdir -p target/test-logs"
+]
+
+post-test = [
+    "echo 'Test suite completed.'",
+    "ls -la target/nextest/"
+]
+
+# GPU setup script
+gpu-setup = [
+    "nvidia-smi",
+    "echo 'GPU memory before tests:'",
+    "nvidia-smi --query-gpu=memory.used,memory.total --format=csv"
+]
+
+# Performance test setup
+performance-setup = [
+    "echo 'Setting CPU governor to performance mode'",
+    "echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
+]

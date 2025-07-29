@@ -1,0 +1,101 @@
+# Configuration for cargo-deny to check dependencies, licenses, and advisories
+# Documentation: https://embarkstudios.github.io/cargo-deny/
+
+[advisories]
+# Advisory database configuration
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/RustSec/advisory-db"]
+yanked = "deny"
+ignore = [
+    # Add ignored advisories here with justification
+    # "RUSTSEC-YYYY-NNNN", # Reason for ignoring
+]
+
+[bans]
+# Ban certain crates
+multiple-versions = "warn"  # Allow multiple versions but warn
+wildcards = "deny"         # Deny wildcard version requirements
+highlight = "all"          # Highlight all duplicate dependencies
+allow = [
+    # Allow specific duplicate dependencies if needed
+    # { name = "windows-sys", version = "*" }
+]
+deny = [
+    # Deny specific crates with security issues
+    { name = "openssl", version = "<1.1.1" },
+    { name = "rustls", version = "<0.20" },
+    { name = "hyper", version = "<0.14.18" },
+    { name = "tokio", version = "<1.20.1" },
+    
+    # Cryptographic crates with known vulnerabilities
+    { name = "aes", version = "<0.7.5" },
+    { name = "rsa", version = "<0.6.1" },
+]
+skip = [
+    # Skip certain crates from bans checking
+    # { name = "winapi", version = "*" }
+]
+skip-tree = [
+    # Skip entire dependency trees
+    # { name = "windows-sys", version = "*" }
+]
+
+[licenses]
+# License configuration for supply chain compliance
+unlicensed = "deny"       # Deny packages without licenses
+allow-osi-fsf-libre = "both"  # Allow OSI/FSF libre licenses
+copyleft = "warn"         # Warn on copyleft licenses
+confidence-threshold = 0.8  # Confidence threshold for license detection
+
+allow = [
+    # Approved licenses for this project
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception", 
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "Unlicense",
+    "Zlib",
+]
+
+deny = [
+    # Denied licenses - copyleft and restrictive
+    "GPL-2.0",
+    "GPL-3.0", 
+    "LGPL-2.1",
+    "LGPL-3.0",
+    "AGPL-3.0",
+    "CC-BY-SA-4.0",
+    "SSPL-1.0",
+    # Commercial licenses
+    "LicenseRef-Commercial",
+]
+
+exceptions = [
+    # License exceptions for specific packages
+    # { allow = ["LGPL-2.1"], name = "some-gpl-crate" }
+]
+
+[[licenses.clarify]]
+# Clarify ambiguous licenses
+# name = "some-crate"
+# version = "*"
+# expression = "MIT OR Apache-2.0"
+# license-files = [{ path = "LICENSE", hash = 0x12345 }]
+
+[sources]
+# Source configuration
+unknown-registry = "warn"  # Warn on unknown registries
+unknown-git = "warn"       # Warn on unknown git sources
+allow-registry = [
+    "https://github.com/rust-lang/crates.io-index"
+]
+allow-git = [
+    # Trusted git sources for cryptographic libraries
+    "https://github.com/microsoft/SEAL",
+    "https://github.com/zama-ai/tfhe-rs",
+    "https://github.com/facebook/Halo2",
+]

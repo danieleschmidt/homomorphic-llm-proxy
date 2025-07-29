@@ -1,0 +1,54 @@
+# Bandit security scanning configuration for Python code
+[bandit]
+# Paths to scan
+targets = ["python/", "scripts/", "tests/"]
+
+# Paths to exclude from scanning
+exclude_dirs = [
+    "tests/fixtures/",
+    "python/build/",
+    "python/dist/",
+    ".venv/",
+    "__pycache__/"
+]
+
+# Security test IDs to skip (with justification)
+skips = [
+    # B101: Test for use of assert - disabled for tests
+    # B603: subprocess without shell equals true - used safely in build scripts
+]
+
+# Severity level (low, medium, high)
+level = "low"
+
+# Confidence level (low, medium, high)  
+confidence = "medium"
+
+# Output format (json, txt, csv, xml)
+format = "json"
+
+# Additional plugin directories
+plugin_dirs = []
+
+[blacklist_calls]
+# Functions to flag as potentially dangerous
+bad_name_sets = [
+    "pickle",
+    "marshal", 
+    "shelve",
+    "subprocess.call",
+    "os.system"
+]
+
+[blacklist_imports]
+# Import patterns to flag
+bad_import_sets = [
+    "pickle",
+    "cPickle", 
+    "marshal",
+    "shelve"
+]
+
+[hardcoded_password]
+# Pattern for detecting hardcoded passwords
+word_list = "bandit/wordlists/password.txt"

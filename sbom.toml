@@ -1,0 +1,62 @@
+# Software Bill of Materials (SBOM) Configuration
+# Generates CycloneDX and SPDX format SBOMs for supply chain security
+
+[metadata]
+name = "homomorphic-llm-proxy"
+version = "0.1.0" 
+supplier = "Your Org"
+author = "Your Org <team@your-org.com>"
+timestamp = true
+
+[formats]
+# Generate multiple SBOM formats
+spdx = true
+cyclonedx = true
+json = true
+xml = false
+
+[components]
+# Include all dependency types
+runtime = true
+dev = true
+optional = true
+build = true
+
+[vulnerability_scanning]
+# Enable vulnerability scanning in generated SBOMs
+enable = true
+# Severity threshold for reporting
+min_severity = "medium"
+# Include fix information when available
+include_fixes = true
+
+[cargo]
+# Rust-specific SBOM configuration
+include_lock_file = true
+include_dev_dependencies = true
+workspace_members = true
+
+[python]
+# Python-specific SBOM configuration  
+include_requirements = true
+include_dev_requirements = true
+include_optional_dependencies = true
+
+[docker]
+# Container image SBOM generation
+base_image_analysis = true
+layer_analysis = true
+package_managers = ["apt", "apk", "yum", "npm", "pip", "cargo"]
+
+[compliance]
+# Compliance framework mappings
+nist_ssdf = true
+slsa = true
+s2c2f = true
+
+[output]
+# Output configuration
+directory = "sbom/"
+filename_pattern = "{name}-{version}-{timestamp}"
+compress = true
+sign = true  # Requires GPG key configuration

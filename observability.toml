@@ -1,0 +1,147 @@
+# Observability configuration for homomorphic-llm-proxy
+# Covers metrics, logging, tracing, and alerting setup
+
+[logging]
+# Structured logging configuration
+level = "info"
+format = "json"
+timestamp = true
+file_rotation = true
+max_file_size = "100MB"
+max_files = 10
+
+# Privacy-aware logging for cryptographic systems
+[logging.privacy]
+# Never log plaintext data
+exclude_plaintext = true
+# Redact sensitive fields
+redact_fields = [
+    "private_key",
+    "secret_key", 
+    "plaintext",
+    "user_data",
+    "api_key",
+    "token"
+]
+# Log encryption metadata only
+log_encryption_metadata = true
+
+[metrics]
+# Prometheus-compatible metrics
+enable = true
+bind_address = "0.0.0.0:9090"
+path = "/metrics"
+
+# FHE-specific metrics
+[metrics.fhe]
+# Encryption/decryption performance
+encryption_duration_histogram = true
+decryption_duration_histogram = true
+key_generation_duration = true
+
+# Memory and GPU utilization
+gpu_memory_usage = true
+cpu_memory_usage = true
+batch_size_distribution = true
+
+# Privacy budget tracking
+privacy_budget_remaining = true
+privacy_queries_count = true
+epsilon_consumption_rate = true
+
+# Homomorphic operation metrics
+homomorphic_operations_count = true
+ciphertext_size_distribution = true
+noise_growth_tracking = true
+
+[tracing]  
+# Distributed tracing configuration
+enable = true
+endpoint = "http://localhost:14268/api/traces"
+service_name = "fhe-llm-proxy"
+sample_rate = 0.1
+
+# Trace sensitive operations without exposing data
+[tracing.privacy]
+trace_encryption_flow = true
+trace_key_operations = false  # Too sensitive
+trace_homomorphic_ops = true
+redact_user_context = true
+
+[alerting]
+# Alert configuration
+enable = true
+webhook_url = "${ALERT_WEBHOOK_URL}"
+
+# Performance alerts
+[alerting.performance]
+high_latency_threshold = "5s"
+gpu_memory_threshold = 0.9
+error_rate_threshold = 0.05
+privacy_budget_exhaustion_threshold = 0.9
+
+# Security alerts  
+[alerting.security]
+failed_authentications_threshold = 10
+key_rotation_due = true
+certificate_expiry_warning_days = 30
+suspicious_request_patterns = true
+
+# Privacy alerts
+[alerting.privacy]
+privacy_budget_low_threshold = 0.1
+differential_privacy_violations = true
+plaintext_exposure_attempts = true
+
+[health_checks]
+# Service health monitoring
+enable = true
+bind_address = "0.0.0.0:8081"
+path = "/health"
+
+# Health check endpoints
+[health_checks.endpoints]
+liveness = "/health/live"    # Is service running?
+readiness = "/health/ready"  # Is service ready for requests?
+startup = "/health/startup"  # Has service finished startup?
+
+# Dependency health checks
+[health_checks.dependencies]
+llm_provider_timeout = "30s"
+key_management_timeout = "10s"
+gpu_availability_check = true
+privacy_budget_service = true
+
+[dashboard]
+# Monitoring dashboard configuration
+enable = true
+grafana_datasource = "prometheus"
+update_interval = "30s"
+
+# Dashboard panels for FHE system
+[dashboard.panels]
+encryption_throughput = true
+gpu_utilization = true
+privacy_budget_usage = true
+error_rates = true
+latency_percentiles = true
+key_rotation_status = true
+
+[compliance]
+# Compliance monitoring and reporting
+enable = true
+frameworks = ["SOC2", "FIPS140", "GDPR"]
+
+# Audit logging
+[compliance.audit]
+log_all_key_operations = true
+log_user_consent_changes = true
+log_data_processing_purposes = true
+retention_period_days = 2555  # 7 years
+
+# Privacy compliance monitoring  
+[compliance.privacy]
+track_consent_changes = true
+monitor_data_minimization = true
+audit_right_to_be_forgotten = true
+cross_border_transfer_logging = true

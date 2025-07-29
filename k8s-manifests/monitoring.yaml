@@ -1,0 +1,220 @@
+# Kubernetes monitoring stack for FHE LLM Proxy
+# Includes Prometheus, Grafana, and AlertManager configuration
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fhe-monitoring
+  labels:
+    name: fhe-monitoring
+    app.kubernetes.io/part-of: fhe-llm-proxy
+
+---
+apiVersion: v1
+kind: ConfigMap  
+metadata:
+  name: prometheus-config
+  namespace: fhe-monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+      
+    scrape_configs:
+      - job_name: 'fhe-proxy'
+        static_configs:
+          - targets: ['fhe-llm-proxy:9090']
+        scrape_interval: 5s
+        metrics_path: /metrics
+        
+      - job_name: 'gpu-metrics'
+        static_configs:
+          - targets: ['dcgm-exporter:9400']
+        scrape_interval: 10s
+        
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['node-exporter:9100']
+          
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alerting-rules
+  namespace: fhe-monitoring
+data:
+  fhe-alerts.yml: |
+    groups:
+      - name: fhe-proxy-alerts
+        rules:
+          - alert: HighEncryptionLatency
+            expr: histogram_quantile(0.95, fhe_encryption_duration_seconds) > 5
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High encryption latency detected"
+              description: "95th percentile encryption latency is {{ $value }}s"
+              
+          - alert: GPUMemoryHigh
+            expr: gpu_memory_utilization > 0.9
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "GPU memory usage critical"
+              description: "GPU memory at {{ $value }}% utilization"
+              
+          - alert: PrivacyBudgetLow
+            expr: privacy_budget_remaining_ratio < 0.1
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Privacy budget running low"
+              description: "Only {{ $value }}% of privacy budget remaining"
+              
+          - alert: KeyRotationDue
+            expr: time() - last_key_rotation_timestamp > 86400
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Key rotation overdue"
+              description: "Keys not rotated for {{ $value }} hours"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: fhe-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus/'
+          - '--web.console.libraries=/etc/prometheus/console_libraries'
+          - '--web.console.templates=/etc/prometheus/consoles'
+          - '--storage.tsdb.retention.time=7d'
+          - '--web.enable-lifecycle'
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus/
+        - name: alerting-rules
+          mountPath: /etc/prometheus/rules/
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi" 
+            cpu: "500m"
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+      - name: alerting-rules
+        configMap:
+          name: alerting-rules
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: fhe-monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment  
+metadata:
+  name: grafana
+  namespace: fhe-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.0.0
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secrets
+              key: admin-password
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: grafana-storage
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: fhe-monitoring
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secrets
+  namespace: fhe-monitoring
+type: Opaque
+stringData:
+  admin-password: "change-me-in-production"
