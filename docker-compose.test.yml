@@ -1,0 +1,134 @@
+services:
+  # Test version of the FHE proxy with debug configuration
+  fhe-proxy-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    ports:
+      - "8081:8080"
+      - "9091:9090"
+    environment:
+      - RUST_LOG=debug
+      - DEV_MODE=true
+      - MOCK_GPU=true  # Use CPU mock for testing
+      - LLM_ENDPOINT=http://mock-llm:8082
+      - REDIS_URL=redis://redis-test:6379
+    volumes:
+      - ./tests/fixtures/configs:/app/config:ro
+      - ./tests/fixtures/keys:/app/keys:ro
+    depends_on:
+      - redis-test
+      - mock-llm
+    networks:
+      - test-network
+
+  # Test Redis instance
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly no --save ""
+    networks:
+      - test-network
+
+  # Mock LLM service for testing
+  mock-llm:
+    build:
+      context: ./tests/fixtures/mock-llm
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - MOCK_LATENCY=100  # 100ms mock latency
+      - MOCK_ERRORS=false
+    networks:
+      - test-network
+
+  # Test database for integration tests
+  postgres-test:
+    image: postgres:15-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=fhe_proxy_test
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+    volumes:
+      - test-db-data:/var/lib/postgresql/data
+    networks:
+      - test-network
+
+  # Load testing service
+  load-test:
+    build:
+      context: ./tests/load
+      dockerfile: Dockerfile
+    depends_on:
+      - fhe-proxy-test
+    environment:
+      - TARGET_HOST=http://fhe-proxy-test:8080
+      - CONCURRENT_USERS=10
+      - RAMP_UP_PERIOD=60
+      - TEST_DURATION=300
+    volumes:
+      - ./tests/load/scenarios:/app/scenarios:ro
+      - ./tests/load/reports:/app/reports
+    networks:
+      - test-network
+    profiles:
+      - load-testing
+
+  # Security testing service
+  security-test:
+    build:
+      context: ./tests/security
+      dockerfile: Dockerfile
+    depends_on:
+      - fhe-proxy-test
+    environment:
+      - TARGET_HOST=http://fhe-proxy-test:8080
+      - SECURITY_SCAN_LEVEL=high
+    volumes:
+      - ./tests/security/configs:/app/configs:ro
+      - ./tests/security/reports:/app/reports
+    networks:
+      - test-network
+    profiles:
+      - security-testing
+
+  # Performance monitoring for tests
+  test-metrics:
+    image: prom/prometheus:latest
+    ports:
+      - "9092:9090"
+    volumes:
+      - ./tests/fixtures/prometheus-test.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=1h'  # Short retention for tests
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+
+  # Test result collection
+  test-results:
+    image: nginx:alpine
+    ports:
+      - "8083:80"
+    volumes:
+      - ./tests/reports:/usr/share/nginx/html/reports:ro
+      - ./tests/fixtures/nginx-test.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - test-network
+    profiles:
+      - reporting
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test-db-data:

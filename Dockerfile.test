@@ -1,0 +1,86 @@
+# Test Dockerfile with additional debugging and testing tools
+FROM nvidia/cuda:12.0-devel-ubuntu22.04 as builder
+
+# Install system dependencies including test tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    git \
+    valgrind \
+    gdb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust with additional components for testing
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && /root/.cargo/bin/rustup component add clippy rustfmt llvm-tools-preview
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install cargo tools for testing
+RUN cargo install cargo-tarpaulin cargo-audit cargo-deny
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY Cargo.toml Cargo.lock* ./
+
+# Create dummy source to cache dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo build --features gpu
+RUN rm -rf src
+
+# Copy actual source code
+COPY src ./src
+COPY crates ./crates
+COPY tests ./tests
+
+# Build with test features
+RUN cargo build --features gpu,test-utils
+
+# Runtime stage
+FROM nvidia/cuda:12.0-runtime-ubuntu22.04
+
+# Install runtime dependencies and debugging tools
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    htop \
+    netstat-nat \
+    tcpdump \
+    strace \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user
+RUN groupadd -r fheproxy && useradd -r -g fheproxy fheproxy
+
+# Copy binary and test utilities
+COPY --from=builder /app/target/debug/homomorphic-llm-proxy /usr/local/bin/
+COPY --from=builder /app/tests /app/tests
+
+# Create necessary directories
+RUN mkdir -p /app/config /app/data /app/logs /app/test-results \
+    && chown -R fheproxy:fheproxy /app
+
+# Copy test configuration
+COPY tests/fixtures/configs/test-config.toml /app/config/config.toml
+
+# Expose ports
+EXPOSE 8080 9090
+
+# Health check for testing
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Switch to non-root user
+USER fheproxy
+
+# Set test-specific environment variables
+ENV RUST_LOG=debug
+ENV RUST_BACKTRACE=1
+ENV DEV_MODE=true
+
+# Default command with test configuration
+CMD ["homomorphic-llm-proxy", "--config", "/app/config/config.toml", "--test-mode"]

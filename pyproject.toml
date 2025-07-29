@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fhe-llm-proxy"
+version = "0.1.0"
+description = "Python client SDK for Homomorphic LLM Proxy"
+authors = [{name = "Your Org", email = "team@your-org.com"}]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["cryptography", "fhe", "privacy", "llm", "client"]
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "cryptography>=41.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.0.260",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+langchain = [
+    "langchain>=0.1.0",
+]
+fastapi = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/homomorphic-llm-proxy"
+Documentation = "https://docs.your-org.com/fhe-proxy"
+Repository = "https://github.com/your-org/homomorphic-llm-proxy"
+Issues = "https://github.com/your-org/homomorphic-llm-proxy/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/fhe_llm_proxy"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501", # line too long, handled by black
+    "B008", # do not perform function calls in argument defaults
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "--cov=fhe_llm_proxy --cov-report=term-missing --cov-report=html"
