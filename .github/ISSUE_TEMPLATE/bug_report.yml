@@ -1,0 +1,94 @@
+name: Bug Report
+description: File a bug report to help us improve
+labels: ["bug", "triage"]
+assignees: ["security-team"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Security Check
+      description: Please confirm this is not a security vulnerability
+      options:
+        - label: I confirm this is not a security issue (use security@your-org.com for security reports)
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of FHE LLM Proxy are you using?
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      multiple: true
+      options:
+        - Docker
+        - Kubernetes
+        - Bare metal
+        - GPU acceleration
+        - CPU only
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected to happen
+      placeholder: A clear and concise description of what the bug is
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Configure proxy with...
+        2. Send request to...
+        3. Observe error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: Please copy and paste any relevant log output (redact sensitive information)
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Share your configuration (redact sensitive values)
+      render: toml
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Low - Minor issue, workaround available
+        - Medium - Significant impact, affects functionality
+        - High - Major issue, system unusable
+        - Critical - Security or data loss issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here

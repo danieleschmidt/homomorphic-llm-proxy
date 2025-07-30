@@ -1,0 +1,89 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    "security:openssf-scorecard"
+  ],
+  "timezone": "UTC",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "assignees": [
+    "security-team"
+  ],
+  "reviewers": [
+    "maintainers"
+  ],
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "commitMessagePrefix": "deps:",
+  "semanticCommits": "enabled",
+  "packageRules": [
+    {
+      "matchManagers": ["cargo"],
+      "labels": ["rust", "dependencies"],
+      "assignees": ["rust-maintainers"],
+      "groupName": "Rust dependencies",
+      "schedule": [
+        "every weekday before 6am"
+      ]
+    },
+    {
+      "matchManagers": ["pip_requirements"],
+      "labels": ["python", "dependencies"],
+      "assignees": ["python-team"],
+      "groupName": "Python dependencies",
+      "schedule": [
+        "every weekday before 6am"
+      ]
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "labels": ["docker", "dependencies"],
+      "groupName": "Docker dependencies",
+      "schedule": [
+        "before 6am on monday"
+      ]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "labels": ["github-actions", "dependencies"],
+      "groupName": "GitHub Actions",
+      "schedule": [
+        "before 6am on tuesday"
+      ]
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "Development dependencies",
+      "schedule": [
+        "before 6am on friday"
+      ]
+    },
+    {
+      "matchPackagePatterns": ["*security*", "*vulnerability*", "*audit*"],
+      "labels": ["security", "critical"],
+      "prPriority": 10,
+      "schedule": [
+        "at any time"
+      ]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "vulnerability"],
+    "assignees": ["security-team"],
+    "prPriority": 10
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on sunday"
+    ]
+  },
+  "osvVulnerabilityAlerts": true,
+  "transitiveRemediation": true
+}

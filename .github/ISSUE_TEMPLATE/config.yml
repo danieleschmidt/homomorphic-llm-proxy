@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security Vulnerability Report
+    url: mailto:security@your-org.com
+    about: Report critical security vulnerabilities privately via email
+  - name: 💬 Community Discussion
+    url: https://github.com/your-org/homomorphic-llm-proxy/discussions
+    about: Ask questions and discuss with the community
+  - name: 📚 Documentation
+    url: https://docs.your-org.com/fhe-proxy
+    about: Check the documentation for answers to common questions
+  - name: 🐛 Bug in Documentation
+    url: https://github.com/your-org/docs/issues/new
+    about: Report issues with documentation in the docs repository
