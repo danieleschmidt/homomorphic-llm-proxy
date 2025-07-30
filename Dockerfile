@@ -1,5 +1,5 @@
 # Multi-stage build for GPU-accelerated FHE proxy
-FROM nvidia/cuda:12.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.9.1-devel-ubuntu22.04 as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -33,7 +33,7 @@ COPY crates ./crates
 RUN cargo build --release --features gpu
 
 # Runtime stage
-FROM nvidia/cuda:12.0-runtime-ubuntu22.04
+FROM nvidia/cuda:12.9.1-runtime-ubuntu22.04
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
