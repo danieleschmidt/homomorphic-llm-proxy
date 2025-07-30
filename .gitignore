@@ -223,3 +223,39 @@ Thumbs.db
 *.tmp
 *.temp
 ~*
+
+# Rust specific
+target/
+Cargo.lock
+*.rlib
+*.rmeta
+
+# Security sensitive files  
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+.env.local
+.env.production
+.env.*.local
+secrets/
+keys/
+vault/
+*.secret
+
+# Development environment
+.direnv/
+.envrc.local
+
+# Coverage and profiling
+coverage/
+*.profraw
+*.profdata
+flamegraph.svg
+perf.data*
+
+# Container volumes and data
+data/
+volumes/
+docker-volumes/

@@ -1,0 +1,75 @@
+name: Security Issue
+description: Report a security vulnerability (for non-critical issues only)
+labels: ["security", "triage"]
+assignees: ["security-team"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **IMPORTANT**: For critical security vulnerabilities, please email security@your-org.com instead of filing a public issue.
+        
+        This template is for non-critical security improvements and questions.
+
+  - type: checkboxes
+    id: severity-check
+    attributes:
+      label: Severity Confirmation
+      description: Please confirm the severity level
+      options:
+        - label: This is a LOW severity security concern (documentation, minor hardening, etc.)
+          required: true
+        - label: I confirm this is NOT a critical vulnerability that could compromise user data or system security
+          required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Security Category
+      options:
+        - Documentation improvement
+        - Security hardening suggestion
+        - Audit finding (non-critical)
+        - Compliance question
+        - Best practices question
+        - Security tooling improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the security concern or improvement
+      placeholder: Describe the security issue or improvement suggestion
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What is the potential impact of this issue?
+      placeholder: Describe the potential security impact
+
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommended Action
+      description: What action do you recommend?
+      placeholder: Suggest how this could be addressed
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Include any relevant security references, standards, or documentation
+      placeholder: |
+        - CVE reference
+        - Security standard
+        - Documentation link
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Reminder**: Critical vulnerabilities should be reported privately to security@your-org.com
