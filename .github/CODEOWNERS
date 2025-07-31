@@ -1,0 +1,59 @@
+# CODEOWNERS file for homomorphic-llm-proxy
+# This file defines who should review changes to specific parts of the codebase
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners (fallback for any code without specific owners)
+* @security-team @maintainers
+
+# Core Rust implementation
+/src/ @rust-team @crypto-team @security-team
+/crates/ @rust-team @crypto-team
+
+# Cryptographic code requires additional security review
+/src/crypto/ @crypto-team @security-team
+/src/fhe/ @crypto-team @security-team
+
+# Python client SDK
+/python/ @python-team @api-team
+
+# Security-critical files
+/SECURITY.md @security-team
+/.github/workflows/security.yml @security-team
+/.bandit @security-team
+/.secrets.baseline @security-team
+/deny.toml @security-team
+
+# CI/CD and infrastructure
+/.github/workflows/ @devops-team @security-team
+/Dockerfile* @devops-team @security-team
+/docker-compose*.yml @devops-team
+/k8s-manifests/ @devops-team @platform-team
+
+# Performance and benchmarking
+/benchmarks/ @performance-team @rust-team
+/load-testing/ @performance-team @devops-team
+/justfile @rust-team @devops-team
+
+# Documentation
+/docs/ @docs-team
+/README.md @docs-team @maintainers
+/ARCHITECTURE.md @architecture-team @docs-team
+
+# Build and project configuration
+/Cargo.toml @rust-team @maintainers
+/pyproject.toml @python-team @maintainers
+/deny.toml @security-team @rust-team
+
+# Monitoring and observability
+/observability.toml @platform-team @devops-team
+/k8s-manifests/monitoring.yaml @platform-team @devops-team
+
+# Development environment
+/scripts/ @devops-team
+/justfile @devops-team @rust-team
+/.pre-commit-config.yaml @devops-team
+
+# Compliance and governance
+/slsa-provenance.json @security-team @compliance-team
+/sbom.toml @security-team @compliance-team
+/disaster-recovery.md @platform-team @security-team
