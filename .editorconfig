@@ -11,5 +11,17 @@ indent_size = 2
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+[*.rs]
+indent_size = 4
+
+[*.{toml,yaml,yml,json}]
+indent_size = 2
+
 [*.md]
 trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+[*.py]
+indent_size = 4
