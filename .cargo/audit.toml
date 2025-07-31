@@ -1,82 +1,27 @@
 # Cargo audit configuration for security vulnerability scanning
+[database]
+auto-update = true
+update-timeout = 30
+stale-database-allowed = true
+
 [advisories]
-# Path to the advisory database
-db-path = "~/.cargo/advisory-db"
-
-# URLs to the advisory databases
-db-urls = [
-    "https://github.com/RustSec/advisory-db",
-    "https://github.com/github/advisory-database"
-]
-
-# Advisory sources to ignore (use carefully)
-ignore = [
-    # Example: "RUSTSEC-2021-0145"  # Ignore specific advisory if false positive
-]
-
-# Vulnerabilities to ignore (use with extreme caution)
-ignore-advisories = [
-    # Example: "RUSTSEC-2023-0001"  # Only ignore after thorough security review
-]
-
-# Severity levels to warn on
 severity-threshold = "low"
+informational = ["notice", "unmaintained", "unsound"]
 
-# Additional vulnerability sources
-informational-warnings = ["unmaintained", "unsound", "notice"]
-
-[bans]
-# Deny certain crates
-deny = [
-    # Crates with known security issues
-    { name = "openssl", version = "<1.1" },
-    
-    # Crates that might leak sensitive data
-    { name = "log", version = "<0.4", reason = "potential information disclosure" },
-]
-
-# Allow certain crates despite advisories (use carefully)
-allow = [
-    # Example: { name = "some-crate", version = "1.0" }
-]
-
-# Skip certain dependency types
-skip = []
-
-# Skip certain features
-skip-tree = []
+[yanked]
+enabled = true
 
 [licenses]
-# Allowed licenses for dependencies
-allow = [
-    "Apache-2.0",
-    "MIT",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-DFS-2016",
-]
+enabled = true
+allow = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-DFS-2016"]
+deny = ["GPL-2.0", "GPL-3.0", "AGPL-3.0", "LGPL-2.1", "LGPL-3.0"]
 
-# Denied licenses
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-3.0",
-]
+[bans]
+enabled = true
+multiple-versions = "warn"
 
-# License exceptions for specific crates
-exceptions = [
-    # Example: { allow = ["LGPL-2.1"], name = "some-crate" }
-]
-
-# Additional license confidence threshold
-confidence-threshold = 0.8
-
-[sources]
-# Allow only trusted sources
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-
-# Allow specific git sources for approved dependencies
-allow-git = [
-    # Example: "https://github.com/microsoft/SEAL"
-]
+[output]
+format = "human"
+show-tree = false
+quiet = false
+EOF < /dev/null

@@ -1,0 +1,103 @@
+# Codecov configuration for test coverage reporting
+# See https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  # CI service integration
+  ci:
+    - github-actions
+  
+  # Coverage precision (decimal places)
+  precision: 2
+  
+  # Round coverage values
+  round: down
+  
+  # Coverage range colors
+  range: 70..100
+  
+  # Status checks configuration
+  status:
+    project:
+      default:
+        # Overall project coverage
+        target: 85%
+        threshold: 2%
+        base: auto
+        
+    patch:
+      default:
+        # New code coverage requirement
+        target: 90%
+        threshold: 5%
+        base: auto
+        
+  # Coverage configuration
+  coverage:
+    # Status precision
+    precision: 2
+    
+    # Round coverage
+    round: down
+    
+    # Coverage range
+    range: "60...100"
+    
+    # Status configuration
+    status:
+      project:
+        default:
+          target: 85%
+          threshold: 2%
+          
+      patch:
+        default:
+          target: 90%
+          threshold: 5%
+
+# Comment configuration
+comment:
+  # Layout of coverage comment
+  layout: "reach,diff,flags,files,footer"
+  
+  # Behavior settings
+  behavior: default
+  
+  # Require changes to trigger comment
+  require_changes: true
+  
+  # Require base coverage
+  require_base: false
+  
+  # Require head coverage  
+  require_head: true
+
+# File ignore patterns
+ignore:
+  - "tests/**/*"
+  - "test/**/*"
+  - "**/test_*.py"
+  - "**/tests.py"
+  - "examples/**/*"
+  - "docs/**/*"
+  - "benchmarks/**/*"
+  - "target/**/*"
+  - "**/*.bench.rs"
+  - "**/bench.rs"
+
+# Flags for different components
+flags:
+  rust:
+    paths:
+      - src/
+      - crates/
+    carryforward: true
+    
+  python:
+    paths:
+      - python/
+    carryforward: true
+    
+  integration:
+    paths:
+      - tests/integration/
+    carryforward: false
