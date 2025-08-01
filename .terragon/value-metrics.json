@@ -1,0 +1,25 @@
+{
+  "repository": {
+    "name": "homomorphic-llm-proxy",
+    "maturityLevel": "maturing",
+    "lastAssessment": "2025-08-01T00:00:00Z",
+    "maturityScore": 65
+  },
+  "executionHistory": [],
+  "backlogMetrics": {
+    "totalItems": 0,
+    "averageAge": 0,
+    "debtRatio": 0.0,
+    "velocityTrend": "baseline"
+  },
+  "continuousDiscovery": {
+    "lastRun": "2025-08-01T00:00:00Z",
+    "itemsDiscovered": 0,
+    "sourcesScanned": ["gitHistory", "staticAnalysis", "documentation"]
+  },
+  "valueDelivered": {
+    "weeklyValue": 0,
+    "monthlyValue": 0,
+    "totalValue": 0
+  }
+}
