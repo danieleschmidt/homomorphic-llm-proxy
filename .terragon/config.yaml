@@ -1,0 +1,57 @@
+scoring:
+  weights:
+    maturing:
+      wsjf: 0.6
+      ice: 0.1
+      technicalDebt: 0.2
+      security: 0.1
+  
+  thresholds:
+    minScore: 10
+    maxRisk: 0.8
+    securityBoost: 2.0
+    complianceBoost: 1.8
+
+discovery:
+  sources:
+    - gitHistory
+    - staticAnalysis
+    - issueTrackers
+    - vulnerabilityDatabases
+    - performanceMonitoring
+    - userFeedback
+  
+  tools:
+    staticAnalysis:
+      - clippy
+      - cargo-audit
+      - semgrep
+    security:
+      - dependabot
+      - trivy
+      - cargo-deny
+    performance:
+      - criterion
+      - flamegraph
+
+execution:
+  maxConcurrentTasks: 1
+  testRequirements:
+    minCoverage: 80
+    performanceRegression: 5
+  rollbackTriggers:
+    - testFailure
+    - buildFailure
+    - securityViolation
+
+repository:
+  maturityLevel: "maturing"
+  primaryLanguage: "rust"
+  framework: "tokio"
+  deployment: "kubernetes"
+  
+analytics:
+  enabled: true
+  trackDeployments: true
+  trackPerformance: true
+  trackSecurity: true
