@@ -1,0 +1,79 @@
+{
+  "basic": {
+    "simple_greeting": "Hello, how are you?",
+    "question": "What is the capital of France?",
+    "instruction": "Summarize the following text in one sentence.",
+    "empty": "",
+    "single_word": "Hello",
+    "numbers": "Calculate 2 + 2",
+    "unicode": "Hello 世界 🌍"
+  },
+  
+  "complex": {
+    "long_prompt": "Please provide a comprehensive analysis of the current state of artificial intelligence, including recent breakthroughs in machine learning, natural language processing, computer vision, and their potential impacts on various industries such as healthcare, finance, education, and transportation. Additionally, discuss the ethical considerations and challenges that arise with the advancement of AI technology.",
+    
+    "technical": "Explain the mathematical foundations of fully homomorphic encryption, including the Learning With Errors problem, the Ring-LWE assumption, and how CKKS scheme enables approximate arithmetic on encrypted data.",
+    
+    "code_request": "Write a Python function that implements binary search on a sorted array and explain its time complexity.",
+    
+    "multilingual": "Translate the following text to Spanish: 'The weather is beautiful today and I plan to go for a walk in the park.'"
+  },
+  
+  "edge_cases": {
+    "very_long": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. " ,
+    
+    "special_chars": "!@#$%^&*()_+-=[]{}|;':\",./<>?`~",
+    
+    "whitespace_only": "   \n\t   \n   ",
+    
+    "repeated_chars": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    
+    "mixed_content": "Text with numbers 123 and symbols !@# and Unicode 🚀 characters."
+  },
+  
+  "security": {
+    "sql_injection": "'; DROP TABLE users; --",
+    "xss_attempt": "<script>alert('xss')</script>",
+    "command_injection": "$(rm -rf /)",
+    "path_traversal": "../../../etc/passwd",
+    "buffer_overflow": "A".repeat(10000),
+    "format_string": "%s %p %x %d",
+    "null_bytes": "test\0hidden",
+    "control_chars": "\x00\x01\x02\x03\x04\x05"
+  },
+  
+  "privacy": {
+    "personal_info": "My name is John Doe and my SSN is 123-45-6789",
+    "sensitive_data": "Patient has diabetes and high blood pressure",
+    "financial": "Account balance is $50,000 in savings account 12345678",
+    "credentials": "Username: admin, Password: secret123"
+  },
+  
+  "performance": {
+    "small": "Hi",
+    "medium": "This is a medium-length prompt for performance testing purposes.",
+    "large": "This is a large prompt that contains significantly more text to test the performance characteristics of the encryption and processing pipeline. ".repeat(10),
+    "batched": [
+      "First prompt in batch",
+      "Second prompt in batch", 
+      "Third prompt in batch"
+    ]
+  },
+  
+  "conversation": {
+    "chat_context": [
+      {"role": "user", "content": "What is machine learning?"},
+      {"role": "assistant", "content": "Machine learning is a subset of artificial intelligence..."},
+      {"role": "user", "content": "Can you give me an example?"}
+    ],
+    
+    "system_prompt": "You are a helpful assistant specialized in cryptography and privacy.",
+    
+    "multi_turn": [
+      "Hello, I need help with encryption",
+      "What is homomorphic encryption?",
+      "How does it preserve privacy?",
+      "Thank you for the explanation"
+    ]
+  }
+}

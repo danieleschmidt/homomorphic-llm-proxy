@@ -1,0 +1,90 @@
+{
+  "name": "FHE LLM Proxy Development",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "1.75",
+      "profile": "default"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11",
+      "installTools": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "20.10",
+      "dockerDashComposeVersion": "v2"
+    }
+  },
+  
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "rust-analyzer.checkOnSave.command": "clippy",
+        "rust-analyzer.cargo.features": "all",
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.formatting.provider": "black",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": true
+        },
+        "files.watcherExclude": {
+          "**/target/**": true,
+          "**/.git/**": true
+        }
+      },
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "ms-python.pylint",
+        "tamasfe.even-better-toml",
+        "vadimcn.vscode-lldb",
+        "github.vscode-pull-request-github",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "ms-vscode-remote.remote-containers"
+      ]
+    }
+  },
+  
+  "forwardPorts": [8080, 9090, 6379],
+  "portsAttributes": {
+    "8080": {
+      "label": "FHE Proxy Server",
+      "onAutoForward": "notify"
+    },
+    "9090": {
+      "label": "Metrics Server",
+      "onAutoForward": "silent"
+    },
+    "6379": {
+      "label": "Redis",
+      "onAutoForward": "silent"
+    }
+  },
+  
+  "postCreateCommand": "scripts/dev-setup.sh",
+  "postStartCommand": "echo 'FHE LLM Proxy development environment ready!'",
+  
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  
+  "mounts": [
+    "source=${localWorkspaceFolder}/.cache,target=/workspace/.cache,type=bind,consistency=cached",
+    "source=fhe-proxy-cargo-cache,target=/usr/local/cargo,type=volume"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "name": "homomorphic-llm-proxy",
+  "version": "0.2.0",
+  "description": "Privacy-preserving LLM inference gateway using fully homomorphic encryption",
+  "keywords": ["privacy", "homomorphic-encryption", "llm", "proxy", "security", "fhe"],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danieleschmidt/homomorphic-llm-proxy.git"
+  },
+  
+  "scripts": {
+    "dev": "cargo watch -x 'run -- --config config/dev.toml'",
+    "build": "cargo build --release --all-features",
+    "test": "cargo nextest run --all-features",
+    "test:unit": "cargo nextest run --all-features unit",
+    "test:integration": "cargo nextest run --all-features integration",
+    "test:e2e": "cargo nextest run --all-features e2e",
+    "test:coverage": "cargo tarpaulin --all-features --out html --output-dir coverage",
+    
+    "lint": "cargo clippy --all-targets --all-features -- -D warnings",
+    "lint:fix": "cargo clippy --all-targets --all-features --fix -- -D warnings",
+    "format": "cargo fmt --all",
+    "format:check": "cargo fmt --all -- --check",
+    
+    "security": "cargo audit",
+    "security:fix": "cargo audit fix",
+    "security:full": "npm run security && bandit -r python/ && semgrep --config=auto src/",
+    
+    "bench": "cargo bench --all-features",
+    "bench:flamegraph": "cargo flamegraph --bench crypto_benchmark",
+    "bench:compare": "cargo bench --all-features -- --save-baseline main",
+    
+    "doc": "cargo doc --all-features --no-deps --open",
+    "doc:private": "cargo doc --all-features --document-private-items --open",
+    
+    "docker:build": "docker build -t fhe-llm-proxy:latest .",
+    "docker:run": "docker run -p 8080:8080 --gpus all fhe-llm-proxy:latest",
+    "docker:test": "docker build -f Dockerfile.test -t fhe-llm-proxy:test . && docker run fhe-llm-proxy:test",
+    
+    "k8s:deploy": "kubectl apply -f k8s-manifests/",
+    "k8s:delete": "kubectl delete -f k8s-manifests/",
+    
+    "setup": "scripts/dev-setup.sh",
+    "setup:hooks": "pre-commit install && pre-commit install --hook-type commit-msg",
+    "clean": "cargo clean && rm -rf target/ coverage/ .tarpaulin-report.html",
+    "clean:full": "npm run clean && docker system prune -f",
+    
+    "perf": "perf record --call-graph=dwarf ./target/release/fhe-proxy && perf report",
+    "flamegraph": "cargo flamegraph --bin fhe-proxy",
+    "valgrind": "valgrind --tool=massif ./target/release/fhe-proxy",
+    
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run"
+  },
+  
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^21.0.7"
+  },
+  
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  
+  "packageManager": "npm@10.0.0"
+}

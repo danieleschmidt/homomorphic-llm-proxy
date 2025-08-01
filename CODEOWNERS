@@ -1,0 +1,75 @@
+# Code ownership and review assignments for homomorphic-llm-proxy
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repository
+* @danieleschmidt
+
+# Core Rust code
+/src/ @danieleschmidt
+/crates/ @danieleschmidt
+Cargo.toml @danieleschmidt
+Cargo.lock @danieleschmidt
+
+# Cryptography and FHE implementation
+/src/fhe.rs @danieleschmidt
+/src/crypto/ @danieleschmidt
+/tests/unit/test_fhe.rs @danieleschmidt
+
+# Security-critical files
+/src/key_management/ @danieleschmidt
+/src/privacy/ @danieleschmidt
+SECURITY.md @danieleschmidt
+.secrets.baseline @danieleschmidt
+
+# Python client SDK
+/python/ @danieleschmidt
+/python/src/fhe_llm_proxy/ @danieleschmidt
+pyproject.toml @danieleschmidt
+
+# Build and deployment configuration
+Dockerfile* @danieleschmidt
+docker-compose*.yml @danieleschmidt
+/k8s-manifests/ @danieleschmidt
+justfile @danieleschmidt
+Makefile @danieleschmidt
+
+# CI/CD and automation
+/.github/workflows/ @danieleschmidt
+/scripts/ @danieleschmidt
+.pre-commit-config.yaml @danieleschmidt
+
+# Documentation
+/docs/ @danieleschmidt
+README.md @danieleschmidt
+CONTRIBUTING.md @danieleschmidt
+CODE_OF_CONDUCT.md @danieleschmidt
+
+# Configuration files
+/config/ @danieleschmidt
+observability.toml @danieleschmidt
+nextest.toml @danieleschmidt
+mutation-testing.toml @danieleschmidt
+
+# Testing infrastructure
+/tests/ @danieleschmidt
+/benchmarks/ @danieleschmidt
+/load-testing/ @danieleschmidt
+
+# Monitoring and observability
+/monitoring/ @danieleschmidt
+/k8s-manifests/monitoring.yaml @danieleschmidt
+
+# Package and dependency management
+package.json @danieleschmidt
+deny.toml @danieleschmidt
+sbom.toml @danieleschmidt
+
+# Environment and development setup
+.env.example @danieleschmidt
+.editorconfig @danieleschmidt
+.gitignore @danieleschmidt
+.dockerignore @danieleschmidt
+
+# Project metrics and automation
+/.github/project-metrics.json @danieleschmidt
+/scripts/automation/ @danieleschmidt
