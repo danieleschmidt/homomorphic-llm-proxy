@@ -1,0 +1,439 @@
+# GitHub Actions Release Workflow Template  
+# Save this as .github/workflows/release.yml
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Validate release prerequisites
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: v1.0.0"
+            exit 1
+          fi
+
+      - name: Check if tag exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists"
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              echo "Manual release for existing tag"
+            else
+              exit 1
+            fi
+          fi
+
+      - name: Validate changelog entry
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! grep -q "## \[${VERSION#v}\]" CHANGELOG.md; then
+            echo "No changelog entry found for version ${VERSION#v}"
+            echo "Please add a changelog entry in CHANGELOG.md"
+            exit 1
+          fi
+
+  # Build release artifacts
+  build:
+    name: Build Release Artifacts
+    needs: validate
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: fhe-llm-proxy
+            asset_name: fhe-llm-proxy-linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: fhe-llm-proxy
+            asset_name: fhe-llm-proxy-linux-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: fhe-llm-proxy
+            asset_name: fhe-llm-proxy-macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin  
+            artifact_name: fhe-llm-proxy
+            asset_name: fhe-llm-proxy-macos-aarch64
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install gcc-aarch64-linux-gnu
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          fi
+          cargo build --release --target ${{ matrix.target }} --features release
+
+      - name: Strip binary (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+      - name: Create tarball
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          mv ${{ matrix.asset_name }}.tar.gz ../../../
+
+      - name: Generate checksums
+        run: |
+          sha256sum ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.tar.gz.sha256
+
+  # Build Python packages
+  build-python:
+    name: Build Python Packages
+    needs: validate
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build Python packages
+        run: |
+          cd python
+          python -m build
+
+      - name: Check package
+        run: |
+          cd python
+          python -m twine check dist/*
+
+      - name: Upload Python artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-packages
+          path: python/dist/*
+
+  # Build and push container images
+  build-container:
+    name: Build Container Images
+    needs: validate
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: secrets.DOCKERHUB_TOKEN
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/fhe-llm-proxy
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Generate release notes and SBOM
+  prepare-release:
+    name: Prepare Release Assets
+    needs: [validate, build, build-python]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate SBOM
+        run: |
+          cargo install cargo-cyclonedx
+          cargo cyclonedx --format json --output sbom.json
+
+      - name: Generate release notes
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          python scripts/generate-release-notes.py \
+            --version ${VERSION#v} \
+            --changelog CHANGELOG.md \
+            --output release-notes.md
+
+      - name: Create checksums file
+        run: |
+          find . -name "*.tar.gz.sha256" -exec cat {} \; > checksums.txt
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-assets
+          path: |
+            sbom.json
+            release-notes.md
+            checksums.txt
+
+  # Create GitHub release
+  release:
+    name: Create GitHub Release
+    needs: [validate, build, build-python, build-container, prepare-release]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.validate.outputs.version }}
+          release_name: Release ${{ needs.validate.outputs.version }}
+          body_path: release-assets/release-notes.md
+          draft: false
+          prerelease: ${{ contains(needs.validate.outputs.version, '-') }}
+
+      - name: Upload binary assets
+        run: |
+          for asset in fhe-llm-proxy-*/*.tar.gz; do
+            asset_name=$(basename "$asset")
+            gh release upload ${{ needs.validate.outputs.version }} "$asset" --clobber
+          done
+          
+          # Upload checksums and SBOM
+          gh release upload ${{ needs.validate.outputs.version }} release-assets/checksums.txt --clobber
+          gh release upload ${{ needs.validate.outputs.version }} release-assets/sbom.json --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish Python packages
+  publish-python:
+    name: Publish Python Packages
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: pypi
+    
+    steps:
+      - name: Download Python artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: python-packages
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Publish to PyPI
+        run: |
+          python -m twine upload dist/* --verbose
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
+  # Deploy to production
+  deploy-production:
+    name: Deploy to Production
+    needs: [release, build-container]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Deploy new version
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          kubectl set image deployment/fhe-llm-proxy \
+            fhe-proxy=ghcr.io/${{ github.repository }}:${VERSION} \
+            -n fhe-production
+
+      - name: Wait for deployment
+        run: |
+          kubectl rollout status deployment/fhe-llm-proxy -n fhe-production --timeout=600s
+
+      - name: Run post-deployment tests
+        run: |
+          python scripts/post-deployment-tests.py --environment production
+
+  # Post-release tasks
+  post-release:
+    name: Post-Release Tasks
+    needs: [deploy-production, publish-python]
+    runs-on: ubuntu-latest
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update documentation
+        run: |
+          # Update version in documentation
+          VERSION="${{ needs.validate.outputs.version }}"
+          sed -i "s/version = \".*\"/version = \"${VERSION#v}\"/" docs/conf.py
+
+      - name: Create follow-up issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.validate.outputs.version }}';
+            
+            // Create issue for next version planning
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Plan next release after ${version}`,
+              body: `Planning issue for the next release following ${version}.\n\n- [ ] Review feedback from ${version}\n- [ ] Plan new features\n- [ ] Update roadmap`,
+              labels: ['release-planning']
+            });
+
+      - name: Notify team
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: `🚀 Release ${{ needs.validate.outputs.version }} has been deployed to production!`
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Update security scanning baseline
+        run: |
+          # Update security baselines after release
+          echo "Security baseline update would happen here"

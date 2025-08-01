@@ -1,0 +1,410 @@
+# GitHub Actions Security Scanning Workflow Template
+# Save this as .github/workflows/security-scan.yml
+
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Dependency vulnerability scanning
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-security-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        run: cargo audit --format json --output audit-results.json
+        continue-on-error: true
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo deny
+        run: cargo deny check --format json --output deny-results.json
+        continue-on-error: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python security tools
+        run: |
+          cd python
+          pip install safety bandit pip-audit
+
+      - name: Run Python safety check
+        run: |
+          cd python
+          safety check --json --output safety-results.json
+        continue-on-error: true
+
+      - name: Run pip-audit
+        run: |
+          cd python
+          pip-audit --format=json --output=pip-audit-results.json
+        continue-on-error: true
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-scan-results
+          path: |
+            audit-results.json
+            deny-results.json
+            python/safety-results.json
+            python/pip-audit-results.json
+
+  # Static Application Security Testing (SAST)
+  sast-scan:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Run security-focused clippy lints
+        run: |
+          cargo clippy --all-targets --all-features -- \
+            -W clippy::integer_overflow \
+            -W clippy::panic \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used \
+            -W clippy::indexing_slicing \
+            -W clippy::arithmetic_side_effects
+
+      - name: Install semgrep
+        run: pip install semgrep
+
+      - name: Run semgrep security scan
+        run: |
+          semgrep --config=auto --json --output=semgrep-results.json .
+        continue-on-error: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install bandit
+        run: pip install bandit
+
+      - name: Run bandit security scan
+        run: |
+          cd python
+          bandit -r . -f json -o bandit-results.json
+        continue-on-error: true
+
+      - name: Upload SAST results
+        uses: actions/upload-artifact@v3
+        with:
+          name: sast-scan-results
+          path: |
+            semgrep-results.json
+            python/bandit-results.json
+
+  # Secret scanning
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code  
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+
+      - name: Run detect-secrets scan
+        run: |
+          detect-secrets scan --all-files --baseline .secrets.baseline
+          detect-secrets audit .secrets.baseline
+
+      - name: Install gitleaks
+        run: |
+          wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.0_linux_x64.tar.gz
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Run gitleaks scan
+        run: gitleaks detect --report-format json --report-path gitleaks-results.json
+        continue-on-error: true
+
+      - name: Upload secret scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: secret-scan-results
+          path: |
+            .secrets.baseline
+            gitleaks-results.json
+
+  # Container security scanning
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: []
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build container for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: fhe-llm-proxy:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy
+
+      - name: Run Trivy vulnerability scan
+        run: |
+          trivy image --format json --output trivy-results.json fhe-llm-proxy:security-scan
+        continue-on-error: true
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run Grype scan
+        run: |
+          grype fhe-llm-proxy:security-scan -o json --file grype-results.json
+        continue-on-error: true
+
+      - name: Upload container scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: container-scan-results
+          path: |
+            trivy-results.json
+            grype-results.json
+
+  # License compliance scanning
+  license-scan:
+    name: License Compliance Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-license
+        run: cargo install cargo-license
+
+      - name: Generate license report
+        run: |
+          cargo license --json > rust-licenses.json
+          cargo license --tsv > rust-licenses.tsv
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Generate Python license report
+        run: |
+          cd python
+          pip install -e .
+          pip-licenses --format json --output-file python-licenses.json
+          pip-licenses --format csv --output-file python-licenses.csv
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-reports
+          path: |
+            rust-licenses.json
+            rust-licenses.tsv
+            python/python-licenses.json
+            python/python-licenses.csv
+
+  # Cryptographic validation
+  crypto-scan:
+    name: Cryptographic Security Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Run cryptographic security tests
+        run: |
+          # Run specific tests for cryptographic implementations
+          cargo test --features crypto-validation crypto_security_tests
+          cargo test --features crypto-validation key_generation_tests
+          cargo test --features crypto-validation encryption_tests
+
+      - name: Validate FHE parameters
+        run: |
+          # Custom validation for FHE security parameters
+          cargo run --bin validate-fhe-params -- \
+            --poly-modulus-degree 16384 \
+            --coeff-modulus-bits 60,40,40,60 \
+            --security-level 128
+
+      - name: Check for weak cryptographic practices
+        run: |
+          # Scan for weak crypto patterns
+          grep -r "MD5\|SHA1\|DES\|RC4" src/ || true
+          grep -r "Random::new()" src/ || true
+          grep -r "thread_rng()" src/ || true
+
+  # Supply chain security
+  supply-chain-scan:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Generate SBOM
+        run: |
+          cargo install cargo-cyclonedx
+          cargo cyclonedx --format json --output sbom.json
+
+      - name: Scan SBOM for vulnerabilities
+        run: |
+          # Use SBOM scanning tools
+          echo "SBOM vulnerability scanning would happen here"
+
+      - name: Verify dependency signatures
+        run: |
+          # Verify crate signatures if available
+          echo "Dependency signature verification would happen here"
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.json
+
+  # Security report generation
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, sast-scan, secret-scan, container-scan, license-scan, crypto-scan]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all scan results
+        uses: actions/download-artifact@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install report generation tools
+        run: |
+          pip install jinja2 markdown
+
+      - name: Generate consolidated security report
+        run: |
+          python scripts/generate-security-report.py \
+            --dependency-scan dependency-scan-results/ \
+            --sast-scan sast-scan-results/ \
+            --secret-scan secret-scan-results/ \
+            --container-scan container-scan-results/ \
+            --license-scan license-reports/ \
+            --output security-report.html
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security-report.html
+
+      - name: Comment on PR with security summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('security-summary.md')) {
+              const summary = fs.readFileSync('security-summary.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## Security Scan Results\n\n${summary}`
+              });
+            }
+
+      - name: Fail on critical vulnerabilities
+        run: |
+          # Parse results and fail if critical vulnerabilities found
+          python scripts/check-critical-vulnerabilities.py security-report.html
