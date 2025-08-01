@@ -1,0 +1,80 @@
+# Test configuration for FHE LLM Proxy
+# Used by integration and E2E tests
+
+[server]
+host = "127.0.0.1"
+port = 8081  # Use different port for tests
+workers = 1  # Single worker for predictable testing
+
+[logging]
+level = "debug"
+format = "json"
+output = "target/test-logs/proxy.log"
+
+[encryption]
+# Use smaller parameters for faster testing
+poly_modulus_degree = 4096
+coeff_modulus_bits = [40, 30, 30, 40]
+scale_bits = 30
+
+# Test-specific settings
+test_mode = true
+deterministic_keys = true
+fixed_seed = 42
+
+[gpu]
+device_id = 0
+batch_size = 4  # Smaller batches for testing
+kernel_optimization = "debug"
+mock_gpu = true  # Use CPU fallback in tests
+
+[privacy]
+# Relaxed settings for testing
+epsilon_per_query = 1.0
+delta = 1e-3
+max_queries_per_user = 100
+budget_reset_hours = 1
+
+[llm]
+provider = "mock"  # Use mock provider for testing
+endpoint = "http://localhost:8082/mock"
+timeout = 30
+max_retries = 1
+
+# Mock provider settings
+[llm.mock]
+response_delay_ms = 100
+failure_rate = 0.0
+responses_file = "tests/fixtures/mock_responses.json"
+
+[redis]
+url = "redis://localhost:6380"  # Test Redis instance
+password = ""
+db = 1  # Use different DB for tests
+
+[monitoring]
+metrics_port = 9091  # Different port for tests
+trace_sampling_rate = 1.0  # 100% sampling in tests
+export_interval = 5  # Frequent exports for testing
+
+[security]
+key_rotation_hours = 1  # Frequent rotation for testing
+security_level = 80     # Lower security for faster tests
+audit_logging = true
+
+# Test-specific sections
+[test]
+cleanup_after_test = true
+preserve_logs = true
+max_test_duration = 300  # 5 minutes max per test
+
+[test.fixtures]
+keys_dir = "tests/fixtures/keys"
+prompts_file = "tests/fixtures/test_prompts.json"
+responses_file = "tests/fixtures/expected_responses.json"
+
+[test.performance]
+max_latency_ms = 5000
+min_throughput_rps = 1
+max_memory_mb = 2048
+max_gpu_memory_mb = 1024
