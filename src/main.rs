@@ -3,9 +3,6 @@
 //! GPU-accelerated gateway for fully homomorphic encryption (FHE) of LLM inference.
 //! Process prompts on untrusted cloud infrastructure while maintaining complete privacy.
 
-use std::net::SocketAddr;
-use tokio::net::TcpListener;
-
 mod config;
 mod error;
 mod proxy;
@@ -13,23 +10,47 @@ mod fhe;
 
 use config::Config;
 use error::Result;
+use proxy::ProxyServer;
+use tracing::{info, error};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    // Initialize logging
+    init_logging().await?;
     
+    // Load and validate configuration
     let config = Config::load()?;
-    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port)
-        .parse()
-        .expect("Invalid server address");
+    config.validate()?;
     
-    let listener = TcpListener::bind(addr).await?;
-    println!("🔐 FHE LLM Proxy listening on {}", addr);
+    info!("🚀 Starting FHE LLM Proxy");
+    info!("{}", config.summary());
     
-    // TODO: Implement proxy server logic
-    loop {
-        let (socket, addr) = listener.accept().await?;
-        println!("📡 Connection from {}", addr);
-        // Handle connection
+    // Create and start the proxy server
+    let server = ProxyServer::new(config)?;
+    
+    if let Err(e) = server.start().await {
+        error!("Server failed to start: {}", e);
+        std::process::exit(1);
     }
+    
+    Ok(())
+}
+
+/// Initialize logging and tracing
+async fn init_logging() -> Result<()> {
+    // Set up tracing subscriber
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            std::env::var("RUST_LOG")
+                .unwrap_or_else(|_| "info".into())
+        )
+        .with_target(false)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .init();
+    
+    info!("🔐 FHE LLM Proxy starting up...");
+    
+    Ok(())
 }
