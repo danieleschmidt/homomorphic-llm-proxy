@@ -641,6 +641,7 @@ mod tests {
                 let mut engine_guard = pool_engine.write().await;
                 engine_guard.client_keys.insert(client_id, client_key.clone());
             }
+
         }
         
         let plaintext = "Hello, world!";
