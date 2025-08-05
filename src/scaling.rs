@@ -114,7 +114,7 @@ impl FheConnectionPool {
 
         let result = {
             let engine = engine.read().await;
-            engine.decrypt_text(client_id, ciphertext)
+            engine.decrypt_text_safe(client_id, ciphertext)
         };
 
         let elapsed = start.elapsed();
@@ -623,15 +623,24 @@ mod tests {
         let params = FheParams::default();
         let pool = FheConnectionPool::new(2, 4, params).unwrap();
         
-        // Create FHE engine to generate keys first
-        let mut engine = FheEngine::new(FheParams::default()).unwrap();
-        let (client_id, _) = engine.generate_keys().unwrap();
+        // Generate keys in the first engine and replicate to others
+        let client_id = {
+            let mut first_engine = pool.engines[0].write().await;
+            let (client_id, _) = first_engine.generate_keys().unwrap();
+            client_id
+        };
         
-        // Get a reference to one of the pool's engines and add the client key
-        let pool_engine = pool.engines[0].clone();
-        {
-            let mut engine_guard = pool_engine.write().await;
-            engine_guard.client_keys.insert(client_id, engine.client_keys.get(&client_id).unwrap().clone());
+        // Replicate the client key to all other engines to handle load balancing
+        let client_key = {
+            let first_engine = pool.engines[0].read().await;
+            first_engine.client_keys.get(&client_id).unwrap().clone()
+        };
+        
+        for (i, pool_engine) in pool.engines.iter().enumerate() {
+            if i > 0 { // Skip first engine as it already has the key
+                let mut engine_guard = pool_engine.write().await;
+                engine_guard.client_keys.insert(client_id, client_key.clone());
+            }
         }
         
         let plaintext = "Hello, world!";
