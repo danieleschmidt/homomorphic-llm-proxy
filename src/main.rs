@@ -7,6 +7,9 @@ mod config;
 mod error;
 mod proxy;
 mod fhe;
+mod middleware;
+mod monitoring;
+mod scaling;
 
 use config::Config;
 use error::Result;

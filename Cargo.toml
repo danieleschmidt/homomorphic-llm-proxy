@@ -1,1 +1,124 @@
-Execution error
+[package]
+name = "homomorphic-llm-proxy"
+version = "0.1.0"
+edition = "2021"
+authors = ["Terragon Labs <dev@terragonlabs.ai>"]
+description = "GPU-accelerated gateway for fully homomorphic encryption (FHE) of LLM inference"
+readme = "README.md"
+homepage = "https://github.com/terragonlabs/homomorphic-llm-proxy"
+repository = "https://github.com/terragonlabs/homomorphic-llm-proxy"
+license = "Apache-2.0"
+keywords = ["fhe", "llm", "privacy", "encryption", "gpu"]
+categories = ["cryptography", "web-programming::http-server", "science"]
+
+[features]
+default = ["tokio-runtime"]
+tokio-runtime = ["tokio/full"]
+gpu = ["cudarc"]
+benchmarks = ["criterion"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-stream = "0.1"
+
+# Web framework
+axum = { version = "0.7", features = ["json"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "compression-gzip", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.9"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Cryptography foundations
+ring = "0.17"
+base64 = "0.22"
+
+# UUID generation
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Random number generation
+rand = "0.8"
+
+# Configuration
+config = "0.14"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+log = "0.4"
+env_logger = "0.11"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async collections
+dashmap = "5.5"
+
+# Optional GPU acceleration
+cudarc = { version = "0.17", optional = true }
+criterion = { version = "0.5", features = ["html_reports"], optional = true }
+
+# FHE libraries (using available alternatives)
+# Note: concrete and tfhe with these versions are not available, using simulated FHE
+
+# Monitoring and metrics
+prometheus = "0.13"
+opentelemetry = "0.21"
+opentelemetry-prometheus = "0.14"
+
+# Security
+secrecy = "0.8"
+subtle = "2.5"
+
+[dev-dependencies]
+tempfile = "3.8"
+mockito = "1.2"
+rstest = "0.18"
+tokio-test = "0.4"
+
+[build-dependencies]
+vergen = { version = "8.2", features = ["build", "git", "gitcl", "cargo"] }
+
+[[bin]]
+name = "fhe-proxy"
+path = "src/main.rs"
+
+[lib]
+name = "homomorphic_llm_proxy"
+path = "src/lib.rs"
+
+[[bench]]
+name = "fhe_operations"
+harness = false
+
+[[bench]]
+name = "proxy_performance"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+debug = true
+
+[workspace]
+members = [
+    ".",
+]
+
+[package.metadata.docs.rs]
+features = ["gpu"]
+rustdoc-args = ["--cfg", "docsrs"]
