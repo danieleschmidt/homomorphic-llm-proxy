@@ -21,7 +21,7 @@ async fn test_fhe_engine_basic_operations() {
     assert!(!ciphertext.data.is_empty(), "Ciphertext should not be empty");
     assert_eq!(ciphertext.params.security_level, 128, "Security level should be 128");
     
-    let decrypted = fhe_engine.decrypt_text(client_id, &ciphertext).expect("Failed to decrypt");
+    let decrypted = fhe_engine.decrypt_text_safe(client_id, &ciphertext).expect("Failed to decrypt");
     assert_eq!(decrypted, plaintext, "Decrypted text should match original");
     
     println!("✅ FHE Engine basic operations test passed");
