@@ -63,7 +63,7 @@ default = []
 gpu = ["dep:cudarc"]
 
 [dependencies.cudarc]
-version = "0.9"
+version = "0.17"
 optional = true
 
 [dev-dependencies]
