@@ -37,7 +37,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # concrete = "2.11.0"  # Latest stable version
 # For now, we'll implement a simulated FHE system
 num-complex = "0.4"
-rand = "0.8"
+rand = "0.9"
 
 # HTTP client for LLM providers
 reqwest = { version = "0.11", features = ["json", "stream"] }
