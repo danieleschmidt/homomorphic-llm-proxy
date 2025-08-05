@@ -40,7 +40,7 @@ num-complex = "0.4"
 rand = "0.9"
 
 # HTTP client for LLM providers
-reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # Configuration
 config = "0.15"
