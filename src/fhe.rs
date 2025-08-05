@@ -56,8 +56,8 @@ pub struct ServerKey {
 #[derive(Debug)]
 pub struct FheEngine {
     params: FheParams,
-    client_keys: HashMap<Uuid, ClientKey>,
-    server_keys: HashMap<Uuid, ServerKey>,
+    pub client_keys: HashMap<Uuid, ClientKey>,
+    pub server_keys: HashMap<Uuid, ServerKey>,
 }
 
 impl FheEngine {
@@ -99,16 +99,40 @@ impl FheEngine {
         Ok((client_id, server_id))
     }
     
-    /// Encrypt text using CKKS-style encoding
+    /// Encrypt text using CKKS-style encoding with enhanced validation
     pub fn encrypt_text(&self, client_id: Uuid, plaintext: &str) -> Result<Ciphertext> {
-        let _client_key = self.client_keys.get(&client_id)
+        let client_key = self.client_keys.get(&client_id)
             .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
         
-        log::debug!("Encrypting text of length {}", plaintext.len());
+        // Input validation
+        if plaintext.is_empty() {
+            return Err(Error::Validation("Plaintext cannot be empty".to_string()));
+        }
+        
+        if plaintext.len() > 10_000 {
+            return Err(Error::Validation("Plaintext too long (max 10,000 characters)".to_string()));
+        }
+        
+        // Sanitize input
+        let sanitized_text = plaintext.chars()
+            .filter(|c| c.is_ascii() && (!c.is_control() || c.is_whitespace()))
+            .collect::<String>();
+        
+        if sanitized_text != plaintext {
+            log::warn!("Input sanitized during encryption for client {}", client_id);
+        }
+        
+        log::debug!("Encrypting text of length {} for client {}", sanitized_text.len(), client_id);
         
         // Convert text to boolean array for concrete library
-        let text_bytes = plaintext.as_bytes();
+        let text_bytes = sanitized_text.as_bytes();
         let mut encrypted_data = Vec::new();
+        
+        // Add encryption metadata header
+        let metadata = format!("FHE-v1|{}", chrono::Utc::now().timestamp());
+        let metadata_bytes = metadata.as_bytes();
+        encrypted_data.extend_from_slice(&(metadata_bytes.len() as u32).to_le_bytes());
+        encrypted_data.extend_from_slice(metadata_bytes);
         
         // Simulate encryption by encoding each byte as encrypted booleans
         for &byte in text_bytes {
@@ -119,11 +143,14 @@ impl FheEngine {
             }
         }
         
+        // Calculate noise budget based on operations
+        let noise_budget = self.calculate_noise_budget(text_bytes.len());
+        
         Ok(Ciphertext {
             id: Uuid::new_v4(),
             data: encrypted_data,
             params: self.params.clone(),
-            noise_budget: Some(50), // Simulated noise budget
+            noise_budget: Some(noise_budget),
         })
     }
     
@@ -236,6 +263,132 @@ impl FheEngine {
         let security_multiplier = self.params.security_level as u64 / 64;
         Ok(base_cost * security_multiplier)
     }
+    
+    /// Calculate noise budget for ciphertext
+    fn calculate_noise_budget(&self, data_size: usize) -> u64 {
+        let base_budget: u64 = 60; // Starting noise budget
+        let size_penalty = (data_size / 100) as u64; // Penalty for larger data
+        let security_bonus = (self.params.security_level as u64 / 32).saturating_sub(1);
+        
+        base_budget.saturating_sub(size_penalty).saturating_add(security_bonus)
+    }
+
+    /// Validate ciphertext format and metadata
+    pub fn validate_ciphertext_format(&self, ciphertext: &Ciphertext) -> Result<()> {
+        if ciphertext.data.len() < 8 {
+            return Err(Error::Fhe("Ciphertext data too short".to_string()));
+        }
+
+        // Extract metadata header
+        let metadata_len = u32::from_le_bytes([
+            ciphertext.data[0],
+            ciphertext.data[1],
+            ciphertext.data[2],
+            ciphertext.data[3],
+        ]) as usize;
+
+        if metadata_len > 100 || ciphertext.data.len() < 4 + metadata_len {
+            return Err(Error::Fhe("Invalid ciphertext metadata".to_string()));
+        }
+
+        let metadata = String::from_utf8_lossy(
+            &ciphertext.data[4..4 + metadata_len]
+        );
+
+        if !metadata.starts_with("FHE-v1|") {
+            return Err(Error::Fhe("Unsupported ciphertext version".to_string()));
+        }
+
+        log::debug!("Validated ciphertext {} with metadata: {}", ciphertext.id, metadata);
+        Ok(())
+    }
+
+    /// Enhanced decrypt with validation
+    pub fn decrypt_text_safe(&self, client_id: Uuid, ciphertext: &Ciphertext) -> Result<String> {
+        let _client_key = self.client_keys.get(&client_id)
+            .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
+        
+        // Validate ciphertext format
+        self.validate_ciphertext_format(ciphertext)?;
+        self.validate_ciphertext(ciphertext)?;
+
+        log::debug!("Decrypting ciphertext {} for client {}", ciphertext.id, client_id);
+
+        // Extract metadata header
+        let metadata_len = u32::from_le_bytes([
+            ciphertext.data[0],
+            ciphertext.data[1],
+            ciphertext.data[2],
+            ciphertext.data[3],
+        ]) as usize;
+
+        // Skip metadata and decrypt the actual data
+        let encrypted_bits = &ciphertext.data[4 + metadata_len..];
+        let mut text_bytes = Vec::new();
+        
+        for chunk in encrypted_bits.chunks(8) {
+            if chunk.len() == 8 {
+                let mut byte = 0u8;
+                for (i, &bit_byte) in chunk.iter().enumerate() {
+                    if bit_byte != 0 {
+                        byte |= 1 << i;
+                    }
+                }
+                text_bytes.push(byte);
+            }
+        }
+        
+        let result = String::from_utf8(text_bytes)
+            .map_err(|e| Error::Fhe(format!("UTF-8 decode error: {}", e)))?;
+
+        // Additional validation
+        if result.len() > 10_000 {
+            return Err(Error::Fhe("Decrypted text suspiciously long".to_string()));
+        }
+
+        Ok(result)
+    }
+
+    /// Perform key rotation for enhanced security
+    pub fn rotate_keys(&mut self, client_id: Uuid) -> Result<Uuid> {
+        if !self.client_keys.contains_key(&client_id) {
+            return Err(Error::Fhe("Client key not found".to_string()));
+        }
+
+        let new_server_id = Uuid::new_v4();
+        let mut rng = StdRng::from_entropy();
+        let server_key_data: Vec<u8> = (0..256).map(|_| rng.gen()).collect();
+
+        self.server_keys.insert(new_server_id, ServerKey {
+            id: new_server_id,
+            key_data: server_key_data,
+            params: self.params.clone(),
+        });
+
+        log::info!("Rotated server key for client {}: new server key {}", client_id, new_server_id);
+        Ok(new_server_id)
+    }
+
+    /// Get encryption statistics
+    pub fn get_encryption_stats(&self) -> EncryptionStats {
+        EncryptionStats {
+            total_client_keys: self.client_keys.len(),
+            total_server_keys: self.server_keys.len(),
+            security_level: self.params.security_level,
+            poly_modulus_degree: self.params.poly_modulus_degree,
+            max_noise_budget: 60,
+        }
+    }
+}
+
+/// Encryption statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptionStats {
+    pub total_client_keys: usize,
+    pub total_server_keys: usize,
+    pub security_level: u8,
+    pub poly_modulus_degree: usize,
+    pub max_noise_budget: u64,
 }
 
 impl Default for FheEngine {
