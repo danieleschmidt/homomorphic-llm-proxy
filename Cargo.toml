@@ -87,7 +87,7 @@ rstest = "0.18"
 tokio-test = "0.4"
 
 [build-dependencies]
-vergen = { version = "8.2", features = ["build", "git", "gitcl", "cargo"] }
+vergen = { version = "9.0", features = ["build", "git", "gitcl", "cargo"] }
 
 [[bin]]
 name = "fhe-proxy"
