@@ -73,7 +73,7 @@ criterion = { version = "0.7", features = ["html_reports"], optional = true }
 
 # Monitoring and metrics
 prometheus = "0.14"
-opentelemetry = "0.21"
+opentelemetry = "0.30"
 opentelemetry-prometheus = "0.29"
 
 # Security
