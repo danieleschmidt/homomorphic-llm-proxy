@@ -46,7 +46,7 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 rand = "0.9"
 
 # Configuration
-config = "0.14"
+config = "0.15"
 
 # Error handling
 thiserror = "2.0"
