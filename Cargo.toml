@@ -72,7 +72,7 @@ criterion = { version = "0.5", features = ["html_reports"], optional = true }
 # Note: concrete and tfhe with these versions are not available, using simulated FHE
 
 # Monitoring and metrics
-prometheus = "0.13"
+prometheus = "0.14"
 opentelemetry = "0.21"
 opentelemetry-prometheus = "0.14"
 
