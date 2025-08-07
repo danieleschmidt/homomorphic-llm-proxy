@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fhe-proxy-service
+  namespace: fhe-proxy
+  labels:
+    app.kubernetes.io/name: fhe-proxy
+    app.kubernetes.io/component: service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: http
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: metrics
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: fhe-proxy
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fhe-proxy-headless
+  namespace: fhe-proxy
+  labels:
+    app.kubernetes.io/name: fhe-proxy
+    app.kubernetes.io/component: headless-service
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 8080
+    targetPort: http
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: metrics
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: fhe-proxy

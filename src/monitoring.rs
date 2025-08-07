@@ -225,7 +225,7 @@ impl MonitoringService {
         }
     }
 
-    async fn get_fhe_metrics(&self, fhe_engine: &Arc<RwLock<FheEngine>>) -> FheMetrics {
+    async fn get_fhe_metrics(&self, _fhe_engine: &Arc<RwLock<FheEngine>>) -> FheMetrics {
         FheMetrics {
             active_sessions: 10, // Simulated
             cached_ciphertexts: 25, // Simulated

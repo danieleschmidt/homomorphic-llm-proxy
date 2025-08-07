@@ -18,7 +18,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use reqwest::Client as HttpClient;
-use tower::ServiceBuilder;
 use axum::middleware::{from_fn, from_fn_with_state};
 use std::time::{Duration, Instant};
 use base64::prelude::*;
@@ -490,7 +489,7 @@ async fn get_session_stats(
 
 /// Enhanced logging middleware
 async fn logging_middleware(
-    mut request: axum::extract::Request,
+    request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> Response {
     let start = Instant::now();

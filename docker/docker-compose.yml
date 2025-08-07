@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  fhe-proxy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: fhe-proxy
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # API port
+      - "9090:9090"   # Metrics port
+    environment:
+      - RUST_LOG=homomorphic_llm_proxy=info,tower_http=debug
+      - FHE_LOG_LEVEL=info
+      - WAIT_FOR_DEPS=true
+      - GENERATE_TLS_CERTS=false
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - fhe_logs:/var/log/fhe-proxy
+      - ../config.toml:/app/config.toml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - fhe_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  redis:
+    image: redis:7-alpine
+    container_name: fhe-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-secretpass}
+    volumes:
+      - redis_data:/data
+    networks:
+      - fhe_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fhe-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - fhe_network
+    depends_on:
+      - fhe-proxy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fhe-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - fhe_network
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+
+  nginx:
+    image: nginx:alpine
+    container_name: fhe-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - fhe_network
+    depends_on:
+      - fhe-proxy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+
+volumes:
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  fhe_logs:
+    driver: local
+
+networks:
+  fhe_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

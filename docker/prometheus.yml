@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # FHE Proxy metrics
+  - job_name: 'fhe-proxy'
+    static_configs:
+      - targets: ['fhe-proxy:9090']
+    scrape_interval: 5s
+    metrics_path: /metrics
+    
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Redis monitoring (if redis_exporter is added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 15s
+    
+  # System metrics (if node_exporter is added)  
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+# Alerting rules for FHE proxy
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Recording and alerting rules
+rule_files:
+  - "alert_rules.yml"
