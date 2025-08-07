@@ -4,8 +4,7 @@ use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use rand::{Rng, SeedableRng};
-use rand::rngs::StdRng;
+use rand::Rng;
 
 /// FHE parameters for CKKS-like operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,7 +79,7 @@ impl FheEngine {
         log::info!("Generating FHE key pair: client={}, server={}", client_id, server_id);
         
         // Generate simulated key data
-        let mut rng = StdRng::from_entropy();
+        let mut rng = rand::thread_rng();
         let client_key_data: Vec<u8> = (0..128).map(|_| rng.gen()).collect();
         let server_key_data: Vec<u8> = (0..256).map(|_| rng.gen()).collect();
         
@@ -101,7 +100,7 @@ impl FheEngine {
     
     /// Encrypt text using CKKS-style encoding with enhanced validation
     pub fn encrypt_text(&self, client_id: Uuid, plaintext: &str) -> Result<Ciphertext> {
-        let client_key = self.client_keys.get(&client_id)
+        let _client_key = self.client_keys.get(&client_id)
             .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
         
         // Input validation
@@ -307,23 +306,45 @@ impl FheEngine {
     pub fn decrypt_text_safe(&self, client_id: Uuid, ciphertext: &Ciphertext) -> Result<String> {
         let _client_key = self.client_keys.get(&client_id)
             .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
-        
-        // Validate ciphertext format
-        self.validate_ciphertext_format(ciphertext)?;
-        self.validate_ciphertext(ciphertext)?;
 
         log::debug!("Decrypting ciphertext {} for client {}", ciphertext.id, client_id);
 
+        // Check if this is a processed ciphertext
+        let data = if ciphertext.data.starts_with(b"PROCESSED:") {
+            &ciphertext.data[10..] // Skip "PROCESSED:" prefix
+        } else {
+            &ciphertext.data
+        };
+
+        // Validate ciphertext format on clean data
+        let temp_ciphertext = Ciphertext {
+            id: ciphertext.id,
+            data: data.to_vec(),
+            params: ciphertext.params.clone(),
+            noise_budget: ciphertext.noise_budget,
+        };
+        
+        self.validate_ciphertext_format(&temp_ciphertext)?;
+        self.validate_ciphertext(&temp_ciphertext)?;
+
         // Extract metadata header
+        if data.len() < 4 {
+            return Err(Error::Fhe("Invalid ciphertext metadata".to_string()));
+        }
+
         let metadata_len = u32::from_le_bytes([
-            ciphertext.data[0],
-            ciphertext.data[1],
-            ciphertext.data[2],
-            ciphertext.data[3],
+            data[0],
+            data[1],
+            data[2],
+            data[3],
         ]) as usize;
 
+        if data.len() < 4 + metadata_len {
+            return Err(Error::Fhe("Invalid ciphertext metadata length".to_string()));
+        }
+
         // Skip metadata and decrypt the actual data
-        let encrypted_bits = &ciphertext.data[4 + metadata_len..];
+        let encrypted_bits = &data[4 + metadata_len..];
         let mut text_bytes = Vec::new();
         
         for chunk in encrypted_bits.chunks(8) {
@@ -356,7 +377,7 @@ impl FheEngine {
         }
 
         let new_server_id = Uuid::new_v4();
-        let mut rng = StdRng::from_entropy();
+        let mut rng = rand::thread_rng();
         let server_key_data: Vec<u8> = (0..256).map(|_| rng.gen()).collect();
 
         self.server_keys.insert(new_server_id, ServerKey {

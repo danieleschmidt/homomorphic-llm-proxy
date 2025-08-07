@@ -1,0 +1,163 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+max_connections = 1000
+request_timeout_seconds = 300
+enable_cors = true
+cors_allowed_origins = ["https://yourapp.com", "https://api.yourapp.com"]
+cors_allowed_methods = ["GET", "POST", "OPTIONS"]
+cors_allowed_headers = ["Content-Type", "Authorization", "X-API-Key"]
+
+[encryption]
+poly_modulus_degree = 16384
+coeff_modulus_bits = [60, 40, 40, 60]
+scale_bits = 40
+security_level = 128
+key_rotation_hours = 24
+noise_budget_threshold = 10
+
+[llm]
+provider = "openai"
+endpoint = "https://api.openai.com/v1"
+timeout_seconds = 300
+max_retries = 3
+retry_backoff_ms = 1000
+max_tokens_per_request = 4096
+rate_limit_per_minute = 100
+allowed_models = ["gpt-4", "gpt-3.5-turbo", "claude-3-sonnet"]
+custom_providers = []
+
+[gpu]
+enabled = false
+device_id = 0
+batch_size = 32
+kernel_optimization = "aggressive"
+memory_limit_gb = 8
+warmup_iterations = 100
+
+[privacy]
+epsilon_per_query = 0.1
+delta = 1e-5
+max_queries_per_user = 1000
+track_privacy_budget = true
+noise_multiplier = 1.1
+differential_privacy_enabled = true
+privacy_budget_reset_hours = 24
+
+[monitoring]
+metrics_enabled = true
+metrics_port = 9090
+trace_sampling_rate = 0.1
+log_level = "info"
+log_format = "json"
+log_file = "/var/log/fhe-proxy/app.log"
+log_rotation_size_mb = 100
+log_retention_days = 30
+performance_profiling = true
+export_prometheus_metrics = true
+
+[security]
+# API Authentication
+require_api_key = true
+api_key_header = "X-API-Key"
+api_key_min_length = 32
+jwt_secret_key = ""
+jwt_expiry_hours = 24
+session_timeout_minutes = 60
+
+# Input validation
+max_request_size_mb = 10
+max_text_length = 10000
+sanitize_input = true
+block_special_characters = false
+validate_utf8 = true
+
+# Rate limiting
+global_rate_limit = 1000
+per_ip_rate_limit = 100
+rate_limit_window_minutes = 1
+rate_limit_burst = 10
+enable_adaptive_rate_limiting = true
+
+# TLS/SSL
+require_https = true
+tls_cert_path = "/etc/ssl/certs/fhe-proxy.crt"
+tls_key_path = "/etc/ssl/private/fhe-proxy.key"
+tls_min_version = "1.2"
+hsts_max_age_seconds = 31536000
+
+# Security headers
+content_security_policy = "default-src 'self'"
+x_content_type_options = "nosniff"
+x_frame_options = "DENY"
+x_xss_protection = "1; mode=block"
+referrer_policy = "strict-origin-when-cross-origin"
+
+[scaling]
+# Connection pooling
+fhe_pool_size = 4
+max_concurrent_operations = 100
+connection_timeout_seconds = 30
+idle_timeout_seconds = 300
+
+# Auto-scaling
+auto_scaling_enabled = true
+target_cpu_percent = 70.0
+target_queue_length = 50
+scale_up_threshold = 80.0
+scale_down_threshold = 40.0
+min_replicas = 2
+max_replicas = 10
+cooldown_period_seconds = 300
+
+# Caching
+ciphertext_cache_size = 1000
+cache_ttl_seconds = 3600
+cache_cleanup_interval_seconds = 300
+enable_redis_cache = false
+redis_url = "redis://localhost:6379"
+
+# Circuit breaker
+circuit_breaker_enabled = true
+failure_threshold = 5
+success_threshold = 3
+circuit_timeout_seconds = 60
+
+[database]
+# For future persistence layer
+connection_url = ""
+max_connections = 10
+connection_timeout_seconds = 30
+query_timeout_seconds = 60
+
+[alerting]
+# Monitoring and alerting
+webhook_url = ""
+slack_channel = "#fhe-alerts"
+email_recipients = ["admin@yourcompany.com"]
+alert_on_errors = true
+alert_on_high_latency = true
+alert_on_privacy_budget_exhausted = true
+latency_threshold_ms = 1000
+error_rate_threshold_percent = 5.0
+
+[compliance]
+# Regulatory compliance
+gdpr_enabled = true
+ccpa_enabled = true
+hipaa_enabled = false
+audit_logs_enabled = true
+audit_log_retention_days = 2555  # 7 years
+data_encryption_at_rest = true
+pii_detection_enabled = true
+anonymization_enabled = true
+
+[feature_flags]
+# Feature toggles for A/B testing and rollouts
+experimental_algorithms = false
+advanced_privacy_modes = false
+batch_processing = true
+streaming_responses = true
+multi_tenant_support = false
+custom_model_support = true

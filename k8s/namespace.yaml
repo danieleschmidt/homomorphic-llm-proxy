@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fhe-proxy
+  labels:
+    name: fhe-proxy
+    app.kubernetes.io/name: fhe-proxy
+    app.kubernetes.io/part-of: homomorphic-llm-proxy
