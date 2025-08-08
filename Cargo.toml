@@ -77,7 +77,7 @@ opentelemetry = "0.30"
 opentelemetry-prometheus = "0.29"
 
 # Security
-secrecy = { version = "0.8", features = ["serde"] }
+secrecy = { version = "0.10", features = ["serde"] }
 subtle = "2.5"
 
 [dev-dependencies]
