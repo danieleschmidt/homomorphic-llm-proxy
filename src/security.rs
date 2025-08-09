@@ -3,17 +3,26 @@
 use crate::error::{Error, Result};
 use base64::prelude::*;
 use ring::digest;
-use secrecy::{ExposeSecret, Secret, SecretString};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
+/// Security metrics for monitoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityMetrics {
+    pub total_tracked_ips: usize,
+    pub currently_blocked_ips: usize,
+    pub high_risk_ips: usize,
+    pub global_requests_remaining: u64,
+}
+
 /// API key management
 #[derive(Debug)]
 pub struct ApiKeyManager {
     keys: HashMap<String, ApiKeyInfo>,
-    master_secret: Secret<String>,
+    master_secret: SecretString,
 }
 
 #[derive(Debug, Clone)]
@@ -40,7 +49,7 @@ impl ApiKeyManager {
     pub fn new(master_secret: SecretString) -> Self {
         Self {
             keys: HashMap::new(),
-            master_secret: master_secret,
+            master_secret,
         }
     }
 
@@ -435,10 +444,55 @@ impl AdaptiveRateLimiter {
     pub fn cleanup_old_entries(&mut self) {
         let cutoff = Instant::now() - Duration::from_secs(3600); // Clean up entries older than 1 hour
 
+        let before_count = self.suspicious_ips.len();
+        
         self.suspicious_ips.retain(|_, suspicious| {
             suspicious.last_violation > cutoff ||
             suspicious.blocked_until.map_or(false, |until| Instant::now() < until)
         });
+        
+        let after_count = self.suspicious_ips.len();
+        if before_count != after_count {
+            log::debug!("Cleaned up {} old suspicious IP entries", before_count - after_count);
+        }
+    }
+
+    /// Get comprehensive security metrics
+    pub fn get_security_metrics(&self) -> SecurityMetrics {
+        let blocked_ips = self.suspicious_ips.values()
+            .filter(|s| s.blocked_until.map_or(false, |until| Instant::now() < until))
+            .count();
+            
+        let high_risk_ips = self.suspicious_ips.values()
+            .filter(|s| s.violation_count >= 10)
+            .count();
+
+        SecurityMetrics {
+            total_tracked_ips: self.suspicious_ips.len(),
+            currently_blocked_ips: blocked_ips,
+            high_risk_ips,
+            global_requests_remaining: self.global_bucket.tokens as u64,
+        }
+    }
+
+    /// Emergency lockdown mode for security incidents
+    pub fn enable_emergency_lockdown(&mut self, duration: Duration) {
+        log::error!("EMERGENCY LOCKDOWN ACTIVATED for {:?}", duration);
+        
+        // Set global bucket to zero
+        self.global_bucket.tokens = 0.0;
+        self.global_bucket.refill_rate = 0.0;
+        
+        // Block all known IPs temporarily
+        let lockdown_end = Instant::now() + duration;
+        for (ip, suspicious) in self.suspicious_ips.iter_mut() {
+            suspicious.blocked_until = Some(lockdown_end);
+            SecurityAuditor::log_security_violation(
+                "emergency_lockdown", 
+                "IP blocked during emergency lockdown", 
+                ip
+            );
+        }
     }
 }
 

@@ -297,28 +297,68 @@ async fn health_check() -> &'static str {
     "FHE LLM Proxy is running"
 }
 
-/// Generate new FHE key pair
+/// Generate new FHE key pair with enhanced error handling
 async fn generate_keys(
     State(state): State<Arc<ProxyState>>,
 ) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
+    // Record operation start for metrics
+    let timer = state.profiler.start_timer("key_generation");
+    
+    // Check system capacity before generating keys
+    let stats = state.fhe_engine.read().await.get_encryption_stats();
+    if stats.total_client_keys > 1000 {
+        log::warn!("Key generation limit approached: {} active keys", stats.total_client_keys);
+        state.monitoring.record_error(
+            "capacity_warning".to_string(), 
+            "High number of active keys".to_string()
+        ).await;
+    }
+    
     let mut fhe_engine = state.fhe_engine.write().await;
     
-    match fhe_engine.generate_keys() {
-        Ok((client_id, server_id)) => {
-            let session_id = state.session_manager.create_session(client_id, server_id).await;
-            
-            Ok(Json(serde_json::json!({
-                "session_id": session_id,
-                "client_id": client_id,
-                "server_id": server_id,
-                "params": fhe_engine.get_params()
-            })))
-        }
-        Err(e) => {
-            log::error!("Failed to generate keys: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+    // Attempt key generation with retry logic
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: u32 = 3;
+    
+    while attempts < MAX_ATTEMPTS {
+        match fhe_engine.generate_keys() {
+            Ok((client_id, server_id)) => {
+                let session_id = state.session_manager.create_session(client_id, server_id).await;
+                
+                // Record successful operation
+                state.metrics.increment_encryptions();
+                drop(timer); // Complete timing measurement
+                
+                log::info!("Generated FHE key pair for session {} (attempt {})", session_id, attempts + 1);
+                
+                return Ok(Json(serde_json::json!({
+                    "session_id": session_id,
+                    "client_id": client_id,
+                    "server_id": server_id,
+                    "params": fhe_engine.get_params(),
+                    "expires_at": chrono::Utc::now() + chrono::Duration::hours(24)
+                })));
+            }
+            Err(e) => {
+                attempts += 1;
+                log::warn!("Key generation attempt {} failed: {}", attempts, e);
+                
+                if attempts < MAX_ATTEMPTS {
+                    // Brief backoff before retry
+                    drop(fhe_engine); // Release lock during backoff
+                    tokio::time::sleep(std::time::Duration::from_millis(100 * attempts as u64)).await;
+                    fhe_engine = state.fhe_engine.write().await;
+                } else {
+                    state.metrics.increment_errors();
+                    state.monitoring.record_error("key_generation".to_string(), e.to_string()).await;
+                    log::error!("Failed to generate keys after {} attempts: {}", MAX_ATTEMPTS, e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
+            }
         }
     }
+    
+    Err(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// Encrypt text endpoint

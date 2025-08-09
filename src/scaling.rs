@@ -54,6 +54,53 @@ impl FheConnectionPool {
         })
     }
 
+    /// Dynamically scale the pool size based on load
+    pub async fn scale_pool(&mut self, target_size: usize, fhe_params: FheParams) -> Result<()> {
+        let current_size = self.engines.len();
+        
+        if target_size > current_size {
+            // Scale up - add new engines
+            for i in current_size..target_size {
+                let engine = FheEngine::new(fhe_params.clone())?;
+                self.engines.push(Arc::new(RwLock::new(engine)));
+                
+                // Update utilization tracking
+                let mut stats = self.pool_stats.write().await;
+                stats.engine_utilization.insert(i, 0);
+                
+                log::info!("Scaled up: Added FHE engine {} to pool", i);
+            }
+            log::info!("Pool scaled up from {} to {} engines", current_size, target_size);
+        } else if target_size < current_size {
+            // Scale down - remove engines (but keep minimum of 1)
+            let actual_target = target_size.max(1);
+            self.engines.truncate(actual_target);
+            
+            // Clean up utilization tracking
+            let mut stats = self.pool_stats.write().await;
+            stats.engine_utilization.retain(|&k, _| k < actual_target);
+            
+            log::info!("Pool scaled down from {} to {} engines", current_size, actual_target);
+        }
+        
+        Ok(())
+    }
+
+    /// Get optimal engine based on current load
+    async fn get_optimal_engine(&self) -> (usize, Arc<RwLock<FheEngine>>) {
+        let stats = self.pool_stats.read().await;
+        
+        // Find engine with lowest utilization
+        let optimal_idx = stats.engine_utilization
+            .iter()
+            .min_by_key(|(_, &utilization)| utilization)
+            .map(|(&idx, _)| idx)
+            .unwrap_or(0);
+        
+        drop(stats);
+        (optimal_idx, self.engines[optimal_idx].clone())
+    }
+
     /// Get next available engine using round-robin
     async fn get_engine(&self) -> (usize, Arc<RwLock<FheEngine>>) {
         let index = self.current_index.fetch_add(1, Ordering::Relaxed) % self.engines.len();
@@ -66,7 +113,7 @@ impl FheConnectionPool {
             .map_err(|_| Error::Internal("Failed to acquire semaphore permit".to_string()))?;
         
         let start = Instant::now();
-        let (engine_idx, engine) = self.get_engine().await;
+        let (engine_idx, engine) = self.get_optimal_engine().await;
         
         // Update stats
         {
@@ -104,7 +151,7 @@ impl FheConnectionPool {
             .map_err(|_| Error::Internal("Failed to acquire semaphore permit".to_string()))?;
         
         let start = Instant::now();
-        let (engine_idx, engine) = self.get_engine().await;
+        let (engine_idx, engine) = self.get_optimal_engine().await;
         
         {
             let mut stats = self.pool_stats.write().await;
@@ -403,6 +450,117 @@ impl CiphertextCache {
 
     pub async fn get_stats(&self) -> CacheStats {
         self.stats.read().await.clone()
+    }
+
+    /// Intelligent prefetching based on access patterns
+    pub async fn prefetch_likely_accessed(&self, prediction_engine: &PredictionEngine) {
+        let access_predictions = prediction_engine.predict_next_accesses().await;
+        
+        for prediction in access_predictions {
+            if let Some(ciphertext) = self.get(&prediction.ciphertext_id).await {
+                log::debug!("Prefetched ciphertext {} (confidence: {:.2})", 
+                          prediction.ciphertext_id, prediction.confidence);
+            }
+        }
+    }
+
+    /// Warm up cache with commonly accessed ciphertexts
+    pub async fn warm_cache(&self, warm_up_data: Vec<(Uuid, Ciphertext)>) {
+        log::info!("Warming cache with {} entries", warm_up_data.len());
+        
+        for (id, ciphertext) in warm_up_data {
+            self.put(id, ciphertext).await;
+        }
+        
+        let stats = self.get_stats().await;
+        log::info!("Cache warmed: {} entries loaded", stats.current_size);
+    }
+}
+
+/// Prediction engine for intelligent caching
+#[derive(Debug)]
+pub struct PredictionEngine {
+    access_patterns: Arc<RwLock<HashMap<Uuid, AccessPattern>>>,
+    ml_model: Arc<RwLock<SimplePredictionModel>>,
+}
+
+#[derive(Debug, Clone)]
+struct AccessPattern {
+    access_count: u64,
+    last_access: Instant,
+    access_frequency: f64, // accesses per hour
+    correlation_score: f64,
+}
+
+#[derive(Debug)]
+struct SimplePredictionModel {
+    weights: Vec<f64>,
+    threshold: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct AccessPrediction {
+    pub ciphertext_id: Uuid,
+    pub confidence: f64,
+    pub predicted_access_time: Duration,
+}
+
+impl PredictionEngine {
+    pub fn new() -> Self {
+        Self {
+            access_patterns: Arc::new(RwLock::new(HashMap::new())),
+            ml_model: Arc::new(RwLock::new(SimplePredictionModel {
+                weights: vec![0.5, 0.3, 0.2], // frequency, recency, correlation
+                threshold: 0.6,
+            })),
+        }
+    }
+
+    pub async fn record_access(&self, ciphertext_id: Uuid) {
+        let mut patterns = self.access_patterns.write().await;
+        let pattern = patterns.entry(ciphertext_id).or_insert(AccessPattern {
+            access_count: 0,
+            last_access: Instant::now(),
+            access_frequency: 0.0,
+            correlation_score: 0.5,
+        });
+
+        pattern.access_count += 1;
+        pattern.last_access = Instant::now();
+        
+        // Update frequency (simplified calculation)
+        let hours_since_first = pattern.access_count as f64 / 24.0; // Approximate
+        pattern.access_frequency = pattern.access_count as f64 / hours_since_first.max(1.0);
+    }
+
+    pub async fn predict_next_accesses(&self) -> Vec<AccessPrediction> {
+        let patterns = self.access_patterns.read().await;
+        let model = self.ml_model.read().await;
+        let mut predictions = Vec::new();
+
+        for (&ciphertext_id, pattern) in patterns.iter() {
+            let recency_score = 1.0 / (1.0 + pattern.last_access.elapsed().as_secs() as f64 / 3600.0);
+            let frequency_score = pattern.access_frequency / 10.0; // Normalize
+            let correlation_score = pattern.correlation_score;
+
+            let confidence = model.weights[0] * frequency_score +
+                           model.weights[1] * recency_score +
+                           model.weights[2] * correlation_score;
+
+            if confidence > model.threshold {
+                predictions.push(AccessPrediction {
+                    ciphertext_id,
+                    confidence,
+                    predicted_access_time: Duration::from_secs((3600.0 / pattern.access_frequency) as u64),
+                });
+            }
+        }
+
+        // Sort by confidence descending
+        predictions.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+        predictions.truncate(10); // Top 10 predictions
+
+        predictions
     }
 }
 

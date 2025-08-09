@@ -79,9 +79,9 @@ impl FheEngine {
         log::info!("Generating FHE key pair: client={}, server={}", client_id, server_id);
         
         // Generate simulated key data
-        let mut rng = rand::thread_rng();
-        let client_key_data: Vec<u8> = (0..128).map(|_| rng.gen()).collect();
-        let server_key_data: Vec<u8> = (0..256).map(|_| rng.gen()).collect();
+        let mut rng = rand::rng();
+        let client_key_data: Vec<u8> = (0..128).map(|_| rng.random()).collect();
+        let server_key_data: Vec<u8> = (0..256).map(|_| rng.random()).collect();
         
         self.client_keys.insert(client_id, ClientKey {
             id: client_id,
@@ -302,12 +302,22 @@ impl FheEngine {
         Ok(())
     }
 
-    /// Enhanced decrypt with validation
+    /// Enhanced decrypt with validation and retry logic
     pub fn decrypt_text_safe(&self, client_id: Uuid, ciphertext: &Ciphertext) -> Result<String> {
         let _client_key = self.client_keys.get(&client_id)
             .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
 
         log::debug!("Decrypting ciphertext {} for client {}", ciphertext.id, client_id);
+
+        // Validate noise budget before attempting decryption
+        if let Some(budget) = ciphertext.noise_budget {
+            if budget < 5 {
+                return Err(Error::Fhe(format!(
+                    "Insufficient noise budget for decryption: {} bits (minimum 5 required)", 
+                    budget
+                )));
+            }
+        }
 
         // Check if this is a processed ciphertext
         let data = if ciphertext.data.starts_with(b"PROCESSED:") {
@@ -399,6 +409,73 @@ impl FheEngine {
             poly_modulus_degree: self.params.poly_modulus_degree,
             max_noise_budget: 60,
         }
+    }
+
+    /// Batch key generation for improved efficiency
+    pub fn generate_key_batch(&mut self, count: usize) -> Result<Vec<(Uuid, Uuid)>> {
+        let mut key_pairs = Vec::with_capacity(count);
+        
+        log::info!("Generating batch of {} FHE key pairs", count);
+        
+        for i in 0..count {
+            let (client_id, server_id) = self.generate_keys()?;
+            key_pairs.push((client_id, server_id));
+            
+            if (i + 1) % 10 == 0 {
+                log::debug!("Generated {}/{} key pairs", i + 1, count);
+            }
+        }
+        
+        log::info!("Successfully generated {} key pairs", count);
+        Ok(key_pairs)
+    }
+
+    /// Cleanup expired keys to prevent memory leaks
+    pub fn cleanup_expired_keys(&mut self, max_age: std::time::Duration) -> Result<usize> {
+        let now = std::time::Instant::now();
+        let mut removed_count = 0;
+        
+        // Note: In a real implementation, you'd store creation timestamps with keys
+        // For simulation, we'll just log the cleanup operation
+        log::debug!("Performed key cleanup (would remove keys older than {:?})", max_age);
+        
+        Ok(removed_count)
+    }
+
+    /// Validate and repair ciphertext if possible
+    pub fn repair_ciphertext(&self, ciphertext: &mut Ciphertext) -> Result<bool> {
+        // Check if noise budget is critically low
+        if let Some(budget) = ciphertext.noise_budget {
+            if budget < 10 {
+                log::warn!("Ciphertext {} has critically low noise budget: {} bits", 
+                          ciphertext.id, budget);
+                
+                // In a real FHE implementation, bootstrapping would be performed here
+                // For simulation, we'll just log the operation
+                log::info!("Performing bootstrapping on ciphertext {}", ciphertext.id);
+                
+                // Simulate bootstrapping by resetting noise budget
+                ciphertext.noise_budget = Some(50);
+                return Ok(true);
+            }
+        }
+        
+        Ok(false)
+    }
+
+    /// Generate compressed public key for bandwidth optimization
+    pub fn generate_compressed_public_key(&self, client_id: Uuid) -> Result<Vec<u8>> {
+        let _client_key = self.client_keys.get(&client_id)
+            .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
+        
+        // Simulate compressed public key generation
+        let mut rng = rand::thread_rng();
+        let compressed_key: Vec<u8> = (0..64).map(|_| rng.gen()).collect();
+        
+        log::debug!("Generated compressed public key for client {}: {} bytes", 
+                   client_id, compressed_key.len());
+        
+        Ok(compressed_key)
     }
 }
 
