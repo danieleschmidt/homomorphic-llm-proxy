@@ -72,6 +72,8 @@ pub struct MonitoringService {
     version: String,
     components: Arc<RwLock<HashMap<String, ComponentHealth>>>,
     error_tracker: Arc<RwLock<Vec<ErrorEvent>>>,
+    alert_thresholds: AlertThresholds,
+    alert_state: Arc<RwLock<HashMap<String, AlertState>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +83,48 @@ struct ErrorEvent {
     timestamp: Instant,
 }
 
+/// Alert configuration thresholds
+#[derive(Debug, Clone)]
+pub struct AlertThresholds {
+    pub error_rate_per_minute: f64,
+    pub response_time_p95_ms: u64,
+    pub memory_usage_percent: f64,
+    pub cpu_usage_percent: f64,
+    pub active_connections: u32,
+}
+
+impl Default for AlertThresholds {
+    fn default() -> Self {
+        Self {
+            error_rate_per_minute: 10.0,
+            response_time_p95_ms: 5000,
+            memory_usage_percent: 80.0,
+            cpu_usage_percent: 80.0,
+            active_connections: 1000,
+        }
+    }
+}
+
+/// Alert state tracking
+#[derive(Debug, Clone)]
+struct AlertState {
+    alert_type: String,
+    last_triggered: Instant,
+    trigger_count: u32,
+    is_active: bool,
+    escalation_level: u8, // 0=info, 1=warning, 2=critical
+}
+
+/// Alert for notification systems
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Alert {
+    pub alert_type: String,
+    pub message: String,
+    pub severity: u8, // 0=info, 1=warning, 2=critical
+    pub timestamp: u64,
+    pub trigger_count: u32,
+}
+
 impl MonitoringService {
     pub fn new(version: String) -> Self {
         Self {
@@ -88,7 +132,14 @@ impl MonitoringService {
             version,
             components: Arc::new(RwLock::new(HashMap::new())),
             error_tracker: Arc::new(RwLock::new(Vec::new())),
+            alert_thresholds: AlertThresholds::default(),
+            alert_state: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn with_alert_thresholds(mut self, thresholds: AlertThresholds) -> Self {
+        self.alert_thresholds = thresholds;
+        self
     }
 
     /// Perform comprehensive health check
@@ -254,6 +305,141 @@ impl MonitoringService {
     pub async fn liveness_check(&self) -> bool {
         // Basic liveness check - server is running
         true
+    }
+
+    /// Evaluate metrics against alert thresholds
+    pub async fn evaluate_alerts(&self, metrics: &SystemMetrics) -> Vec<Alert> {
+        let mut alerts = Vec::new();
+        let mut alert_state = self.alert_state.write().await;
+        
+        // Check error rate
+        if metrics.errors.error_rate_per_minute > self.alert_thresholds.error_rate_per_minute {
+            let alert = self.create_alert(
+                "high_error_rate".to_string(),
+                format!("Error rate {:.1}/min exceeds threshold {:.1}/min", 
+                       metrics.errors.error_rate_per_minute,
+                       self.alert_thresholds.error_rate_per_minute),
+                2, // Critical
+                &mut alert_state
+            );
+            alerts.push(alert);
+        }
+
+        // Check CPU usage
+        if metrics.system_resources.cpu_usage_percent > self.alert_thresholds.cpu_usage_percent {
+            let alert = self.create_alert(
+                "high_cpu_usage".to_string(),
+                format!("CPU usage {:.1}% exceeds threshold {:.1}%",
+                       metrics.system_resources.cpu_usage_percent,
+                       self.alert_thresholds.cpu_usage_percent),
+                1, // Warning
+                &mut alert_state
+            );
+            alerts.push(alert);
+        }
+
+        // Check memory usage
+        if metrics.system_resources.memory_usage_mb > 1024.0 {
+            let memory_percent = (metrics.system_resources.memory_usage_mb / 1024.0) * 100.0;
+            if memory_percent > self.alert_thresholds.memory_usage_percent {
+                let alert = self.create_alert(
+                    "high_memory_usage".to_string(),
+                    format!("Memory usage {:.1}% exceeds threshold {:.1}%",
+                           memory_percent, self.alert_thresholds.memory_usage_percent),
+                    1, // Warning
+                    &mut alert_state
+                );
+                alerts.push(alert);
+            }
+        }
+
+        alerts
+    }
+
+    fn create_alert(
+        &self, 
+        alert_type: String, 
+        message: String, 
+        severity: u8,
+        alert_state: &mut HashMap<String, AlertState>
+    ) -> Alert {
+        let now = Instant::now();
+        
+        // Get or create alert state
+        let state = alert_state.entry(alert_type.clone()).or_insert(AlertState {
+            alert_type: alert_type.clone(),
+            last_triggered: now,
+            trigger_count: 0,
+            is_active: false,
+            escalation_level: severity,
+        });
+        
+        state.trigger_count += 1;
+        state.last_triggered = now;
+        state.is_active = true;
+        
+        // Escalate based on frequency
+        if state.trigger_count > 5 {
+            state.escalation_level = 2; // Critical
+        }
+
+        Alert {
+            alert_type,
+            message,
+            severity: state.escalation_level,
+            timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+            trigger_count: state.trigger_count,
+        }
+    }
+
+    /// Get active alerts
+    pub async fn get_active_alerts(&self) -> Vec<Alert> {
+        let alert_state = self.alert_state.read().await;
+        let mut alerts = Vec::new();
+        
+        let now = Instant::now();
+        for state in alert_state.values() {
+            if state.is_active && state.last_triggered.elapsed() < Duration::from_secs(300) {
+                alerts.push(Alert {
+                    alert_type: state.alert_type.clone(),
+                    message: format!("Active alert: {}", state.alert_type),
+                    severity: state.escalation_level,
+                    timestamp: now.elapsed().as_secs(),
+                    trigger_count: state.trigger_count,
+                });
+            }
+        }
+        
+        alerts
+    }
+
+    /// Clear resolved alerts
+    pub async fn clear_resolved_alerts(&self) {
+        let mut alert_state = self.alert_state.write().await;
+        let threshold = Instant::now() - Duration::from_secs(600); // 10 minutes
+        
+        for state in alert_state.values_mut() {
+            if state.last_triggered < threshold {
+                state.is_active = false;
+                log::info!("Cleared resolved alert: {}", state.alert_type);
+            }
+        }
+    }
+
+    /// Send alert notification (placeholder for actual implementation)
+    pub fn send_alert_notification(&self, alert: &Alert) {
+        match alert.severity {
+            0 => log::info!("INFO: {}", alert.message),
+            1 => log::warn!("WARNING: {}", alert.message),
+            2 => log::error!("CRITICAL: {}", alert.message),
+            _ => log::error!("UNKNOWN SEVERITY: {}", alert.message),
+        }
+        
+        // In production, this would integrate with:
+        // - PagerDuty
+        // - Slack/Teams
+        // - Email notifications
+        // - SMS alerts for critical issues
     }
 }
 

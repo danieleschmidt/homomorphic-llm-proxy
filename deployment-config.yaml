@@ -1,0 +1,364 @@
+# Production Deployment Configuration for FHE LLM Proxy
+# TERRAGON SDLC v4.0 - Generation 3 Scaling Implementation
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fhe-llm-proxy
+  labels:
+    app.kubernetes.io/name: fhe-llm-proxy
+    app.kubernetes.io/version: "1.0.0"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fhe-llm-proxy
+  namespace: fhe-llm-proxy
+  labels:
+    app: fhe-llm-proxy
+    tier: backend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: fhe-llm-proxy
+  template:
+    metadata:
+      labels:
+        app: fhe-llm-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: fhe-llm-proxy
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+      - name: fhe-proxy
+        image: terragonlabs/fhe-llm-proxy:v1.0.0-production
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: FHE_HOST
+          value: "0.0.0.0"
+        - name: FHE_PORT
+          value: "8080"
+        - name: FHE_GPU_ENABLED
+          value: "true"
+        - name: FHE_GPU_DEVICE_ID
+          value: "0"
+        - name: FHE_METRICS_ENABLED
+          value: "true"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llm-api-keys
+              key: openai-api-key
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: llm-api-keys
+              key: anthropic-api-key
+        - name: FHE_POLY_MODULUS_DEGREE
+          value: "16384"
+        - name: FHE_SECURITY_LEVEL
+          value: "128"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+            nvidia.com/gpu: 1
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: temp-storage
+          mountPath: /tmp
+      volumes:
+      - name: config-volume
+        configMap:
+          name: fhe-proxy-config
+      - name: temp-storage
+        emptyDir:
+          sizeLimit: 1Gi
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        accelerator: nvidia-tesla-gpu
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - fhe-llm-proxy
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fhe-llm-proxy
+  namespace: fhe-llm-proxy
+  labels:
+    app: fhe-llm-proxy
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: http
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: metrics
+    protocol: TCP
+    name: metrics
+  selector:
+    app: fhe-llm-proxy
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fhe-llm-proxy
+  namespace: fhe-llm-proxy
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fhe-llm-proxy-hpa
+  namespace: fhe-llm-proxy
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fhe-llm-proxy
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fhe-proxy-config
+  namespace: fhe-llm-proxy
+data:
+  config.toml: |
+    [server]
+    host = "0.0.0.0"
+    port = 8080
+    workers = 4
+    max_connections = 1000
+    request_timeout_seconds = 300
+
+    [encryption]
+    poly_modulus_degree = 16384
+    coeff_modulus_bits = [60, 40, 40, 60]
+    scale_bits = 40
+    security_level = 128
+
+    [gpu]
+    enabled = true
+    device_id = 0
+    batch_size = 32
+    kernel_optimization = "aggressive"
+    memory_limit_gb = 6
+
+    [privacy]
+    epsilon_per_query = 0.1
+    delta = 0.000001
+    max_queries_per_user = 1000
+    track_privacy_budget = true
+    noise_multiplier = 1.1
+
+    [llm]
+    provider = "openai"
+    endpoint = "https://api.openai.com/v1"
+    timeout_seconds = 300
+    max_retries = 3
+
+    [monitoring]
+    metrics_enabled = true
+    metrics_port = 9090
+    trace_sampling_rate = 0.1
+    log_level = "info"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: llm-api-keys
+  namespace: fhe-llm-proxy
+type: Opaque
+stringData:
+  openai-api-key: "your-openai-api-key-here"
+  anthropic-api-key: "your-anthropic-api-key-here"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fhe-llm-proxy-ingress
+  namespace: fhe-llm-proxy
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-burst: "150"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - fhe-proxy.your-domain.com
+    secretName: fhe-proxy-tls
+  rules:
+  - host: fhe-proxy.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fhe-llm-proxy
+            port:
+              number: 8080
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fhe-llm-proxy-pdb
+  namespace: fhe-llm-proxy
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: fhe-llm-proxy
+
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: fhe-llm-proxy-limits
+  namespace: fhe-llm-proxy
+spec:
+  limits:
+  - default:
+      memory: "4Gi"
+      cpu: "2000m"
+    defaultRequest:
+      memory: "1Gi"
+      cpu: "500m"
+    type: Container
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fhe-llm-proxy-network-policy
+  namespace: fhe-llm-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app: fhe-llm-proxy
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS for LLM APIs
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS
