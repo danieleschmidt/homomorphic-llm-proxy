@@ -15,19 +15,15 @@ fn bench_server_creation(c: &mut Criterion) {
 
 fn bench_config_loading(c: &mut Criterion) {
     c.bench_function("config_loading", |b| {
-        b.iter(|| {
-            black_box(Config::default())
-        })
+        b.iter(|| black_box(Config::default()))
     });
 }
 
 fn bench_config_validation(c: &mut Criterion) {
     let config = Config::default();
-    
+
     c.bench_function("config_validation", |b| {
-        b.iter(|| {
-            black_box(config.validate().unwrap())
-        })
+        b.iter(|| black_box(config.validate().unwrap()))
     });
 }
 

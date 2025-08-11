@@ -1,8 +1,8 @@
 //! Monitoring, health checks, and observability
 
 use crate::error::{Error, Result};
-use crate::middleware::MetricsSnapshot;
 use crate::fhe::FheEngine;
+use crate::middleware::MetricsSnapshot;
 // Axum imports removed as they're not used in this module
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -152,10 +152,10 @@ impl MonitoringService {
 
         // Check FHE engine health
         components.insert("fhe_engine".to_string(), self.check_fhe_engine().await);
-        
+
         // Check database/cache health (simulated)
         components.insert("cache".to_string(), self.check_cache().await);
-        
+
         // Check network connectivity
         components.insert("network".to_string(), self.check_network().await);
 
@@ -179,7 +179,7 @@ impl MonitoringService {
 
     async fn check_fhe_engine(&self) -> ComponentHealth {
         let start = Instant::now();
-        
+
         // Simulate FHE engine health check
         let status = match self.simulate_fhe_check().await {
             Ok(_) => "healthy",
@@ -191,12 +191,15 @@ impl MonitoringService {
 
         ComponentHealth {
             status: status.to_string(),
-            last_check: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_check: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             response_time_ms: Some(start.elapsed().as_millis() as u64),
-            error_message: if status == "unhealthy" { 
-                Some("FHE operations failing".to_string()) 
-            } else { 
-                None 
+            error_message: if status == "unhealthy" {
+                Some("FHE operations failing".to_string())
+            } else {
+                None
             },
         }
     }
@@ -204,7 +207,10 @@ impl MonitoringService {
     async fn check_cache(&self) -> ComponentHealth {
         ComponentHealth {
             status: "healthy".to_string(),
-            last_check: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_check: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             response_time_ms: Some(1),
             error_message: None,
         }
@@ -213,7 +219,10 @@ impl MonitoringService {
     async fn check_network(&self) -> ComponentHealth {
         ComponentHealth {
             status: "healthy".to_string(),
-            last_check: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_check: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             response_time_ms: Some(5),
             error_message: None,
         }
@@ -240,26 +249,30 @@ impl MonitoringService {
     }
 
     /// Get detailed system metrics
-    pub async fn get_metrics(&self, 
+    pub async fn get_metrics(
+        &self,
         requests_metrics: MetricsSnapshot,
-        fhe_engine: &Arc<RwLock<FheEngine>>
+        fhe_engine: &Arc<RwLock<FheEngine>>,
     ) -> SystemMetrics {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let errors = self.error_tracker.read().await;
-        
+
         // Calculate error metrics
-        let recent_errors: Vec<_> = errors.iter()
+        let recent_errors: Vec<_> = errors
+            .iter()
             .filter(|e| e.timestamp > Instant::now() - Duration::from_secs(60))
             .collect();
-        
+
         let mut error_types = HashMap::new();
         for error in &recent_errors {
             *error_types.entry(error.error_type.clone()).or_insert(0) += 1;
         }
 
         let last_error = errors.last().map(|e| e.message.clone());
-        let last_error_timestamp = errors.last()
-            .map(|e| e.timestamp.elapsed().as_secs());
+        let last_error_timestamp = errors.last().map(|e| e.timestamp.elapsed().as_secs());
 
         SystemMetrics {
             timestamp: now,
@@ -278,9 +291,9 @@ impl MonitoringService {
 
     async fn get_fhe_metrics(&self, _fhe_engine: &Arc<RwLock<FheEngine>>) -> FheMetrics {
         FheMetrics {
-            active_sessions: 10, // Simulated
+            active_sessions: 10,    // Simulated
             cached_ciphertexts: 25, // Simulated
-            key_generations: 5, // Simulated
+            key_generations: 5,     // Simulated
             encryption_time_avg_ms: 45.2,
             decryption_time_avg_ms: 38.7,
         }
@@ -311,16 +324,18 @@ impl MonitoringService {
     pub async fn evaluate_alerts(&self, metrics: &SystemMetrics) -> Vec<Alert> {
         let mut alerts = Vec::new();
         let mut alert_state = self.alert_state.write().await;
-        
+
         // Check error rate
         if metrics.errors.error_rate_per_minute > self.alert_thresholds.error_rate_per_minute {
             let alert = self.create_alert(
                 "high_error_rate".to_string(),
-                format!("Error rate {:.1}/min exceeds threshold {:.1}/min", 
-                       metrics.errors.error_rate_per_minute,
-                       self.alert_thresholds.error_rate_per_minute),
+                format!(
+                    "Error rate {:.1}/min exceeds threshold {:.1}/min",
+                    metrics.errors.error_rate_per_minute,
+                    self.alert_thresholds.error_rate_per_minute
+                ),
                 2, // Critical
-                &mut alert_state
+                &mut alert_state,
             );
             alerts.push(alert);
         }
@@ -329,11 +344,13 @@ impl MonitoringService {
         if metrics.system_resources.cpu_usage_percent > self.alert_thresholds.cpu_usage_percent {
             let alert = self.create_alert(
                 "high_cpu_usage".to_string(),
-                format!("CPU usage {:.1}% exceeds threshold {:.1}%",
-                       metrics.system_resources.cpu_usage_percent,
-                       self.alert_thresholds.cpu_usage_percent),
+                format!(
+                    "CPU usage {:.1}% exceeds threshold {:.1}%",
+                    metrics.system_resources.cpu_usage_percent,
+                    self.alert_thresholds.cpu_usage_percent
+                ),
                 1, // Warning
-                &mut alert_state
+                &mut alert_state,
             );
             alerts.push(alert);
         }
@@ -344,10 +361,12 @@ impl MonitoringService {
             if memory_percent > self.alert_thresholds.memory_usage_percent {
                 let alert = self.create_alert(
                     "high_memory_usage".to_string(),
-                    format!("Memory usage {:.1}% exceeds threshold {:.1}%",
-                           memory_percent, self.alert_thresholds.memory_usage_percent),
+                    format!(
+                        "Memory usage {:.1}% exceeds threshold {:.1}%",
+                        memory_percent, self.alert_thresholds.memory_usage_percent
+                    ),
                     1, // Warning
-                    &mut alert_state
+                    &mut alert_state,
                 );
                 alerts.push(alert);
             }
@@ -357,14 +376,14 @@ impl MonitoringService {
     }
 
     fn create_alert(
-        &self, 
-        alert_type: String, 
-        message: String, 
+        &self,
+        alert_type: String,
+        message: String,
         severity: u8,
-        alert_state: &mut HashMap<String, AlertState>
+        alert_state: &mut HashMap<String, AlertState>,
     ) -> Alert {
         let now = Instant::now();
-        
+
         // Get or create alert state
         let state = alert_state.entry(alert_type.clone()).or_insert(AlertState {
             alert_type: alert_type.clone(),
@@ -373,11 +392,11 @@ impl MonitoringService {
             is_active: false,
             escalation_level: severity,
         });
-        
+
         state.trigger_count += 1;
         state.last_triggered = now;
         state.is_active = true;
-        
+
         // Escalate based on frequency
         if state.trigger_count > 5 {
             state.escalation_level = 2; // Critical
@@ -387,7 +406,10 @@ impl MonitoringService {
             alert_type,
             message,
             severity: state.escalation_level,
-            timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             trigger_count: state.trigger_count,
         }
     }
@@ -396,7 +418,7 @@ impl MonitoringService {
     pub async fn get_active_alerts(&self) -> Vec<Alert> {
         let alert_state = self.alert_state.read().await;
         let mut alerts = Vec::new();
-        
+
         let now = Instant::now();
         for state in alert_state.values() {
             if state.is_active && state.last_triggered.elapsed() < Duration::from_secs(300) {
@@ -409,7 +431,7 @@ impl MonitoringService {
                 });
             }
         }
-        
+
         alerts
     }
 
@@ -417,7 +439,7 @@ impl MonitoringService {
     pub async fn clear_resolved_alerts(&self) {
         let mut alert_state = self.alert_state.write().await;
         let threshold = Instant::now() - Duration::from_secs(600); // 10 minutes
-        
+
         for state in alert_state.values_mut() {
             if state.last_triggered < threshold {
                 state.is_active = false;
@@ -434,7 +456,7 @@ impl MonitoringService {
             2 => log::error!("CRITICAL: {}", alert.message),
             _ => log::error!("UNKNOWN SEVERITY: {}", alert.message),
         }
-        
+
         // In production, this would integrate with:
         // - PagerDuty
         // - Slack/Teams
@@ -525,12 +547,12 @@ impl Drop for OperationTimer {
         let duration = self.start_time.elapsed();
         let operation = self.operation.clone();
         let profiler = self.profiler.clone();
-        
+
         tokio::spawn(async move {
             let mut operations = profiler.write().await;
             let timings = operations.entry(operation.clone()).or_insert_with(Vec::new);
             timings.push(duration);
-            
+
             // Keep only the last 1000 measurements
             if timings.len() > 1000 {
                 timings.remove(0);
@@ -606,15 +628,17 @@ mod tests {
     #[tokio::test]
     async fn test_monitoring_service() {
         let service = MonitoringService::new("test-1.0.0".to_string());
-        
+
         // Test health check
         let health = service.health_check().await;
         assert_eq!(health.version, "test-1.0.0");
         assert!(!health.components.is_empty());
 
         // Test error recording
-        service.record_error("TestError".to_string(), "Test message".to_string()).await;
-        
+        service
+            .record_error("TestError".to_string(), "Test message".to_string())
+            .await;
+
         let errors = service.error_tracker.read().await;
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].error_type, "TestError");
@@ -623,7 +647,7 @@ mod tests {
     #[tokio::test]
     async fn test_performance_profiler() {
         let profiler = PerformanceProfiler::new();
-        
+
         // Simulate some operations
         for _ in 0..10 {
             let _timer = profiler.start_timer("test_operation");

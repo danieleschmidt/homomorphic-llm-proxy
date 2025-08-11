@@ -55,16 +55,20 @@ impl ApiKeyManager {
 
     /// Generate a new API key
     pub fn generate_api_key(&mut self, user_id: String, permissions: Vec<Permission>) -> String {
-        let key_data = format!("{}-{}-{}", 
-            user_id, 
-            Uuid::new_v4(), 
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+        let key_data = format!(
+            "{}-{}-{}",
+            user_id,
+            Uuid::new_v4(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
         );
-        
+
         // Hash the key data with master secret
         let key_hash = self.hash_with_secret(&key_data);
         let api_key = BASE64_STANDARD.encode(&key_hash);
-        
+
         let key_info = ApiKeyInfo {
             user_id,
             permissions,
@@ -74,14 +78,16 @@ impl ApiKeyManager {
             last_used: None,
             usage_count: 0,
         };
-        
+
         self.keys.insert(api_key.clone(), key_info);
         api_key
     }
 
     /// Validate API key and return user permissions
     pub fn validate_api_key(&mut self, api_key: &str) -> Result<Vec<Permission>> {
-        let key_info = self.keys.get_mut(api_key)
+        let key_info = self
+            .keys
+            .get_mut(api_key)
             .ok_or_else(|| Error::Auth("Invalid API key".to_string()))?;
 
         // Check expiration
@@ -101,8 +107,8 @@ impl ApiKeyManager {
     /// Check if user has specific permission
     pub fn has_permission(&self, api_key: &str, permission: &Permission) -> bool {
         if let Some(key_info) = self.keys.get(api_key) {
-            key_info.permissions.contains(permission) || 
-            key_info.permissions.contains(&Permission::Admin)
+            key_info.permissions.contains(permission)
+                || key_info.permissions.contains(&Permission::Admin)
         } else {
             false
         }
@@ -110,7 +116,8 @@ impl ApiKeyManager {
 
     /// Revoke an API key
     pub fn revoke_api_key(&mut self, api_key: &str) -> Result<()> {
-        self.keys.remove(api_key)
+        self.keys
+            .remove(api_key)
             .ok_or_else(|| Error::Auth("API key not found".to_string()))?;
         log::info!("Revoked API key: {}", &api_key[..8]);
         Ok(())
@@ -118,7 +125,8 @@ impl ApiKeyManager {
 
     /// Get usage statistics for API key
     pub fn get_key_stats(&self, api_key: &str) -> Option<(u64, Option<Instant>)> {
-        self.keys.get(api_key)
+        self.keys
+            .get(api_key)
             .map(|info| (info.usage_count, info.last_used))
     }
 
@@ -140,9 +148,11 @@ impl InputValidator {
         if input.is_empty() {
             return Err(Error::Validation("Input cannot be empty".to_string()));
         }
-        
+
         if input.len() > 10_000 {
-            return Err(Error::Validation("Input too long (max 10,000 characters)".to_string()));
+            return Err(Error::Validation(
+                "Input too long (max 10,000 characters)".to_string(),
+            ));
         }
 
         // Remove control characters but preserve whitespace
@@ -153,14 +163,16 @@ impl InputValidator {
 
         // Check for potential injection patterns
         if Self::contains_suspicious_patterns(&sanitized) {
-            return Err(Error::Validation("Input contains suspicious patterns".to_string()));
+            return Err(Error::Validation(
+                "Input contains suspicious patterns".to_string(),
+            ));
         }
 
         // Validate UTF-8
         if !sanitized.is_ascii() {
             // Allow Unicode but validate it's properly formed
             match std::str::from_utf8(sanitized.as_bytes()) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(_) => return Err(Error::Validation("Invalid UTF-8 sequence".to_string())),
             }
         }
@@ -170,22 +182,29 @@ impl InputValidator {
 
     /// Validate UUID format
     pub fn validate_uuid(uuid_str: &str) -> Result<Uuid> {
-        uuid_str.parse::<Uuid>()
+        uuid_str
+            .parse::<Uuid>()
             .map_err(|_| Error::Validation(format!("Invalid UUID format: {}", uuid_str)))
     }
 
     /// Validate FHE parameters
     pub fn validate_fhe_params(poly_degree: usize, security_level: u8) -> Result<()> {
         if !poly_degree.is_power_of_two() {
-            return Err(Error::Validation("Polynomial modulus degree must be power of 2".to_string()));
+            return Err(Error::Validation(
+                "Polynomial modulus degree must be power of 2".to_string(),
+            ));
         }
 
         if !(1024..=32768).contains(&poly_degree) {
-            return Err(Error::Validation("Poly modulus degree must be 1024-32768".to_string()));
+            return Err(Error::Validation(
+                "Poly modulus degree must be 1024-32768".to_string(),
+            ));
         }
 
         if ![128, 192].contains(&security_level) {
-            return Err(Error::Validation("Security level must be 128 or 192".to_string()));
+            return Err(Error::Validation(
+                "Security level must be 128 or 192".to_string(),
+            ));
         }
 
         Ok(())
@@ -193,21 +212,42 @@ impl InputValidator {
 
     /// Validate base64 encoded data
     pub fn validate_base64(data: &str) -> Result<Vec<u8>> {
-        BASE64_STANDARD.decode(data)
+        BASE64_STANDARD
+            .decode(data)
             .map_err(|e| Error::Validation(format!("Invalid base64 data: {}", e)))
     }
 
     fn contains_suspicious_patterns(input: &str) -> bool {
         let suspicious_patterns = [
-            "javascript:", "data:", "vbscript:", "onload=", "onerror=",
-            "<script", "</script>", "eval(", "document.cookie",
-            "window.location", "alert(", "confirm(", "prompt(",
-            "DROP TABLE", "DELETE FROM", "UPDATE SET", "INSERT INTO",
-            "UNION SELECT", "OR 1=1", "AND 1=1", "--", "/*", "*/"
+            "javascript:",
+            "data:",
+            "vbscript:",
+            "onload=",
+            "onerror=",
+            "<script",
+            "</script>",
+            "eval(",
+            "document.cookie",
+            "window.location",
+            "alert(",
+            "confirm(",
+            "prompt(",
+            "DROP TABLE",
+            "DELETE FROM",
+            "UPDATE SET",
+            "INSERT INTO",
+            "UNION SELECT",
+            "OR 1=1",
+            "AND 1=1",
+            "--",
+            "/*",
+            "*/",
         ];
 
         let input_lower = input.to_lowercase();
-        suspicious_patterns.iter().any(|pattern| input_lower.contains(pattern))
+        suspicious_patterns
+            .iter()
+            .any(|pattern| input_lower.contains(pattern))
     }
 }
 
@@ -256,7 +296,7 @@ impl SecurityAuditor {
     /// Log privilege escalation attempts
     pub fn log_privilege_escalation(user_id: &str, requested_permission: &str, ip_address: &str) {
         log::error!(
-            target: "security_audit", 
+            target: "security_audit",
             "privilege_escalation user_id={} permission='{}' ip={} timestamp={}",
             user_id,
             requested_permission,
@@ -283,7 +323,7 @@ impl ContentSecurityPolicy {
          base-uri 'self'; \
          form-action 'self'"
     }
-    
+
     pub fn api_policy() -> &'static str {
         "default-src 'none'; \
          connect-src 'self'"
@@ -325,7 +365,7 @@ impl TokenBucket {
 
     fn try_consume(&mut self, tokens: f64) -> bool {
         self.refill();
-        
+
         if self.tokens >= tokens {
             self.tokens -= tokens;
             true
@@ -337,7 +377,7 @@ impl TokenBucket {
     fn refill(&mut self) {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_refill).as_secs_f64();
-        
+
         self.tokens = (self.tokens + elapsed * self.refill_rate).min(self.capacity);
         self.last_refill = now;
     }
@@ -361,7 +401,7 @@ impl AdaptiveRateLimiter {
                     SecurityAuditor::log_security_violation(
                         "blocked_ip_request",
                         &format!("Request from blocked IP: {}", client_ip),
-                        client_ip
+                        client_ip,
                     );
                     return Ok(false);
                 }
@@ -376,7 +416,8 @@ impl AdaptiveRateLimiter {
 
         // Get or create client bucket with adaptive limits
         let client_capacity = self.calculate_adaptive_capacity(client_ip);
-        let client_bucket = self.client_buckets
+        let client_bucket = self
+            .client_buckets
             .entry(client_ip.to_string())
             .or_insert_with(|| TokenBucket::new(client_capacity, client_capacity / 60.0)); // refill over 1 minute
 
@@ -403,7 +444,8 @@ impl AdaptiveRateLimiter {
     }
 
     fn record_violation(&mut self, client_ip: &str, violation_type: &str) {
-        let suspicious = self.suspicious_ips
+        let suspicious = self
+            .suspicious_ips
             .entry(client_ip.to_string())
             .or_insert_with(|| SuspiciousActivity {
                 violation_count: 0,
@@ -416,27 +458,31 @@ impl AdaptiveRateLimiter {
 
         // Escalate blocking based on violation count
         let block_duration = match suspicious.violation_count {
-            1..=3 => None, // Warning only
-            4..=6 => Some(Duration::from_secs(60)), // 1 minute
-            7..=10 => Some(Duration::from_secs(300)), // 5 minutes
+            1..=3 => None,                              // Warning only
+            4..=6 => Some(Duration::from_secs(60)),     // 1 minute
+            7..=10 => Some(Duration::from_secs(300)),   // 5 minutes
             11..=20 => Some(Duration::from_secs(3600)), // 1 hour
-            _ => Some(Duration::from_secs(86400)), // 24 hours
+            _ => Some(Duration::from_secs(86400)),      // 24 hours
         };
 
         if let Some(duration) = block_duration {
             suspicious.blocked_until = Some(Instant::now() + duration);
             SecurityAuditor::log_security_violation(
                 "ip_temporarily_blocked",
-                &format!("IP {} blocked for {} seconds due to {} violations",
-                        client_ip, duration.as_secs(), suspicious.violation_count),
-                client_ip
+                &format!(
+                    "IP {} blocked for {} seconds due to {} violations",
+                    client_ip,
+                    duration.as_secs(),
+                    suspicious.violation_count
+                ),
+                client_ip,
             );
         }
 
         SecurityAuditor::log_security_violation(
             violation_type,
             &format!("Rate limit violation #{}", suspicious.violation_count),
-            client_ip
+            client_ip,
         );
     }
 
@@ -445,25 +491,37 @@ impl AdaptiveRateLimiter {
         let cutoff = Instant::now() - Duration::from_secs(3600); // Clean up entries older than 1 hour
 
         let before_count = self.suspicious_ips.len();
-        
+
         self.suspicious_ips.retain(|_, suspicious| {
-            suspicious.last_violation > cutoff ||
-            suspicious.blocked_until.map_or(false, |until| Instant::now() < until)
+            suspicious.last_violation > cutoff
+                || suspicious
+                    .blocked_until
+                    .map_or(false, |until| Instant::now() < until)
         });
-        
+
         let after_count = self.suspicious_ips.len();
         if before_count != after_count {
-            log::debug!("Cleaned up {} old suspicious IP entries", before_count - after_count);
+            log::debug!(
+                "Cleaned up {} old suspicious IP entries",
+                before_count - after_count
+            );
         }
     }
 
     /// Get comprehensive security metrics
     pub fn get_security_metrics(&self) -> SecurityMetrics {
-        let blocked_ips = self.suspicious_ips.values()
-            .filter(|s| s.blocked_until.map_or(false, |until| Instant::now() < until))
+        let blocked_ips = self
+            .suspicious_ips
+            .values()
+            .filter(|s| {
+                s.blocked_until
+                    .map_or(false, |until| Instant::now() < until)
+            })
             .count();
-            
-        let high_risk_ips = self.suspicious_ips.values()
+
+        let high_risk_ips = self
+            .suspicious_ips
+            .values()
             .filter(|s| s.violation_count >= 10)
             .count();
 
@@ -478,19 +536,19 @@ impl AdaptiveRateLimiter {
     /// Emergency lockdown mode for security incidents
     pub fn enable_emergency_lockdown(&mut self, duration: Duration) {
         log::error!("EMERGENCY LOCKDOWN ACTIVATED for {:?}", duration);
-        
+
         // Set global bucket to zero
         self.global_bucket.tokens = 0.0;
         self.global_bucket.refill_rate = 0.0;
-        
+
         // Block all known IPs temporarily
         let lockdown_end = Instant::now() + duration;
         for (ip, suspicious) in self.suspicious_ips.iter_mut() {
             suspicious.blocked_until = Some(lockdown_end);
             SecurityAuditor::log_security_violation(
-                "emergency_lockdown", 
-                "IP blocked during emergency lockdown", 
-                ip
+                "emergency_lockdown",
+                "IP blocked during emergency lockdown",
+                ip,
             );
         }
     }
@@ -545,21 +603,21 @@ mod tests {
         // Should be able to consume tokens initially
         assert!(bucket.try_consume(5.0));
         assert!(bucket.try_consume(5.0));
-        
+
         // Should be empty now
         assert!(!bucket.try_consume(1.0));
 
         // Wait and refill (simulated)
         std::thread::sleep(std::time::Duration::from_millis(100));
         bucket.refill();
-        
+
         // Should have some tokens now
         assert!(bucket.try_consume(0.1));
     }
 
     #[test]
     fn test_api_key_generation() {
-        let master_secret = SecretString::new("test-secret-key".to_string());
+        let master_secret = SecretString::new("test-secret-key".to_string().into());
         let mut manager = ApiKeyManager::new(master_secret);
 
         let permissions = vec![Permission::Encrypt, Permission::Decrypt];

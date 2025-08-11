@@ -2,9 +2,15 @@
 
 fn main() {
     // Simple build information
-    println!("cargo:rustc-env=BUILD_TIMESTAMP={}", chrono::Utc::now().timestamp());
-    println!("cargo:rustc-env=BUILD_VERSION={}", env!("CARGO_PKG_VERSION"));
-    
+    println!(
+        "cargo:rustc-env=BUILD_TIMESTAMP={}",
+        chrono::Utc::now().timestamp()
+    );
+    println!(
+        "cargo:rustc-env=BUILD_VERSION={}",
+        env!("CARGO_PKG_VERSION")
+    );
+
     // Add security compile flags for Linux
     #[cfg(target_os = "linux")]
     {
