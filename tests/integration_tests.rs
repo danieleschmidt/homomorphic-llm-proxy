@@ -1,10 +1,12 @@
 //! Integration tests for the FHE LLM Proxy
 
-use homomorphic_llm_proxy::{Config, Error};
 use homomorphic_llm_proxy::fhe::{FheEngine, FheParams};
-use homomorphic_llm_proxy::security::{ApiKeyManager, InputValidator, Permission, AdaptiveRateLimiter};
-use homomorphic_llm_proxy::middleware::{MetricsCollector, RateLimiter, PrivacyBudgetTracker};
+use homomorphic_llm_proxy::middleware::{MetricsCollector, PrivacyBudgetTracker, RateLimiter};
 use homomorphic_llm_proxy::monitoring::{MonitoringService, PerformanceProfiler};
+use homomorphic_llm_proxy::security::{
+    AdaptiveRateLimiter, ApiKeyManager, InputValidator, Permission,
+};
+use homomorphic_llm_proxy::{Config, Error};
 use secrecy::SecretString;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -37,14 +39,16 @@ async fn test_fhe_encryption_workflow() {
 
     // Test encryption
     let plaintext = "Hello, secure world!";
-    let ciphertext = engine.encrypt_text(client_id, plaintext)
+    let ciphertext = engine
+        .encrypt_text(client_id, plaintext)
         .expect("Failed to encrypt text");
 
     assert!(!ciphertext.data.is_empty());
     assert!(ciphertext.noise_budget.is_some());
 
     // Test decryption
-    let decrypted = engine.decrypt_text_safe(client_id, &ciphertext)
+    let decrypted = engine
+        .decrypt_text_safe(client_id, &ciphertext)
         .expect("Failed to decrypt text");
 
     assert_eq!(decrypted, plaintext);
@@ -63,11 +67,11 @@ fn test_input_validation() {
     // Valid inputs
     assert!(InputValidator::sanitize_text("Hello world!").is_ok());
     assert!(InputValidator::sanitize_text("Testing with émojis 🔐").is_ok());
-    
+
     // Invalid inputs
     assert!(InputValidator::sanitize_text("").is_err());
     assert!(InputValidator::sanitize_text(&"a".repeat(20000)).is_err());
-    
+
     // Suspicious patterns
     assert!(InputValidator::sanitize_text("<script>alert('xss')</script>").is_err());
     assert!(InputValidator::sanitize_text("'; DROP TABLE users; --").is_err());
@@ -90,7 +94,7 @@ fn test_input_validation() {
 /// Test API key management system
 #[tokio::test]
 async fn test_api_key_management() {
-    let master_secret = SecretString::new("test-master-secret-key-12345".to_string());
+    let master_secret = SecretString::new("test-master-secret-key-12345".to_string().into());
     let mut manager = ApiKeyManager::new(master_secret);
 
     // Generate API key
@@ -101,7 +105,8 @@ async fn test_api_key_management() {
     assert!(api_key.len() > 20); // Reasonable length
 
     // Validate API key
-    let validated_permissions = manager.validate_api_key(&api_key)
+    let validated_permissions = manager
+        .validate_api_key(&api_key)
         .expect("Failed to validate API key");
     assert_eq!(validated_permissions.len(), 2);
 
@@ -174,7 +179,7 @@ async fn test_metrics_collection() {
     metrics.increment_errors();
     metrics.increment_encryptions();
     metrics.increment_decryptions();
-    
+
     let response_time = Duration::from_millis(150);
     metrics.record_response_time(response_time);
 
@@ -228,7 +233,9 @@ async fn test_monitoring_service() {
     assert!(service.readiness_check().await);
 
     // Test error recording
-    service.record_error("TestError".to_string(), "Test error message".to_string()).await;
+    service
+        .record_error("TestError".to_string(), "Test error message".to_string())
+        .await;
 
     // Wait a bit for async operations
     sleep(Duration::from_millis(10)).await;
@@ -273,7 +280,7 @@ async fn test_error_handling() {
     let invalid_client_id = Uuid::new_v4();
     let result = engine.encrypt_text(invalid_client_id, "test");
     assert!(result.is_err());
-    
+
     // Test empty plaintext
     let (client_id, _) = engine.generate_keys().unwrap();
     let result = engine.encrypt_text(client_id, "");
@@ -294,11 +301,11 @@ async fn test_concurrent_operations() {
 
     // Test concurrent encryptions
     let mut handles = Vec::new();
-    
+
     for i in 0..10 {
         let plaintext = format!("Test message {}", i);
         let ciphertext = engine.encrypt_text(client_id, &plaintext).unwrap();
-        
+
         let handle = tokio::spawn(async move {
             // Simulate some processing
             sleep(Duration::from_millis(10)).await;
@@ -308,11 +315,14 @@ async fn test_concurrent_operations() {
     }
 
     // Wait for all operations to complete
-    let results: Result<Vec<_>, _> = futures::future::join_all(handles).await.into_iter().collect();
+    let results: Result<Vec<_>, _> = futures::future::join_all(handles)
+        .await
+        .into_iter()
+        .collect();
     let ciphertexts = results.expect("All encryption operations should succeed");
-    
+
     assert_eq!(ciphertexts.len(), 10);
-    
+
     // Verify all ciphertexts are valid and different
     for ciphertext in ciphertexts {
         assert!(!ciphertext.data.is_empty());
@@ -328,7 +338,7 @@ async fn test_memory_safety() {
         let params = FheParams::default();
         let mut engine = FheEngine::new(params).expect("Failed to create FHE engine");
         let (client_id, _) = engine.generate_keys().unwrap();
-        
+
         let ciphertext = engine.encrypt_text(client_id, "test").unwrap();
         let _decrypted = engine.decrypt_text_safe(client_id, &ciphertext).unwrap();
     }
@@ -339,7 +349,7 @@ async fn test_memory_safety() {
         metrics.increment_requests();
         metrics.record_response_time(Duration::from_millis(100));
     }
-    
+
     let stats = metrics.get_stats();
     assert_eq!(stats.total_requests, 1000);
 }
@@ -360,16 +370,20 @@ async fn test_full_workflow_integration() {
         scale_bits: config.encryption.scale_bits,
         security_level: config.encryption.security_level,
     };
-    
+
     let mut fhe_engine = FheEngine::new(params).expect("Failed to create FHE engine");
     let (client_id, _server_id) = fhe_engine.generate_keys().expect("Failed to generate keys");
 
     // Initialize security components
-    let master_secret = SecretString::new("integration-test-secret-key".to_string());
+    let master_secret = SecretString::new("integration-test-secret-key".to_string().into());
     let mut api_manager = ApiKeyManager::new(master_secret);
     let api_key = api_manager.generate_api_key(
         "integration-test-user".to_string(),
-        vec![Permission::Encrypt, Permission::Decrypt, Permission::ProcessLLM]
+        vec![
+            Permission::Encrypt,
+            Permission::Decrypt,
+            Permission::ProcessLLM,
+        ],
     );
 
     // Initialize monitoring
@@ -383,7 +397,8 @@ async fn test_full_workflow_integration() {
     let test_plaintext = "This is a secret message for FHE processing";
 
     // 1. Authenticate API key
-    let permissions = api_manager.validate_api_key(&api_key)
+    let permissions = api_manager
+        .validate_api_key(&api_key)
         .expect("API key validation failed");
     assert!(permissions.contains(&Permission::Encrypt));
 
@@ -392,18 +407,22 @@ async fn test_full_workflow_integration() {
     metrics.increment_requests();
 
     // 3. Validate input
-    let sanitized_input = InputValidator::sanitize_text(test_plaintext)
-        .expect("Input sanitization failed");
+    let sanitized_input =
+        InputValidator::sanitize_text(test_plaintext).expect("Input sanitization failed");
 
     // 4. Check privacy budget
-    assert!(privacy_tracker.check_budget("integration-test-user", 0.1, 1e-5).await.unwrap());
+    assert!(privacy_tracker
+        .check_budget("integration-test-user", 0.1, 1e-5)
+        .await
+        .unwrap());
 
     // 5. Encrypt data
     let start_time = std::time::Instant::now();
-    let ciphertext = fhe_engine.encrypt_text(client_id, &sanitized_input)
+    let ciphertext = fhe_engine
+        .encrypt_text(client_id, &sanitized_input)
         .expect("Encryption failed");
     let encrypt_duration = start_time.elapsed();
-    
+
     metrics.increment_encryptions();
     metrics.record_response_time(encrypt_duration);
 
@@ -411,13 +430,15 @@ async fn test_full_workflow_integration() {
     assert!(fhe_engine.validate_ciphertext(&ciphertext).unwrap());
 
     // 7. Process (simulate LLM processing)
-    let processed_ciphertext = fhe_engine.process_encrypted_prompt(&ciphertext)
+    let processed_ciphertext = fhe_engine
+        .process_encrypted_prompt(&ciphertext)
         .expect("Encrypted processing failed");
 
     // 8. Decrypt result
-    let decrypted_result = fhe_engine.decrypt_text_safe(client_id, &processed_ciphertext)
+    let decrypted_result = fhe_engine
+        .decrypt_text_safe(client_id, &processed_ciphertext)
         .expect("Decryption failed");
-    
+
     metrics.increment_decryptions();
 
     // 9. Verify health status

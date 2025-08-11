@@ -1,7 +1,7 @@
 //! Scaling and performance optimization features
 
 use crate::error::{Error, Result};
-use crate::fhe::{FheEngine, Ciphertext, FheParams};
+use crate::fhe::{Ciphertext, FheEngine, FheParams};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -29,7 +29,7 @@ struct PoolStats {
 impl FheConnectionPool {
     pub fn new(pool_size: usize, max_concurrent: usize, fhe_params: FheParams) -> Result<Self> {
         let mut engines = Vec::with_capacity(pool_size);
-        
+
         for i in 0..pool_size {
             let engine = FheEngine::new(fhe_params.clone())?;
             engines.push(Arc::new(RwLock::new(engine)));
@@ -57,46 +57,55 @@ impl FheConnectionPool {
     /// Dynamically scale the pool size based on load
     pub async fn scale_pool(&mut self, target_size: usize, fhe_params: FheParams) -> Result<()> {
         let current_size = self.engines.len();
-        
+
         if target_size > current_size {
             // Scale up - add new engines
             for i in current_size..target_size {
                 let engine = FheEngine::new(fhe_params.clone())?;
                 self.engines.push(Arc::new(RwLock::new(engine)));
-                
+
                 // Update utilization tracking
                 let mut stats = self.pool_stats.write().await;
                 stats.engine_utilization.insert(i, 0);
-                
+
                 log::info!("Scaled up: Added FHE engine {} to pool", i);
             }
-            log::info!("Pool scaled up from {} to {} engines", current_size, target_size);
+            log::info!(
+                "Pool scaled up from {} to {} engines",
+                current_size,
+                target_size
+            );
         } else if target_size < current_size {
             // Scale down - remove engines (but keep minimum of 1)
             let actual_target = target_size.max(1);
             self.engines.truncate(actual_target);
-            
+
             // Clean up utilization tracking
             let mut stats = self.pool_stats.write().await;
             stats.engine_utilization.retain(|&k, _| k < actual_target);
-            
-            log::info!("Pool scaled down from {} to {} engines", current_size, actual_target);
+
+            log::info!(
+                "Pool scaled down from {} to {} engines",
+                current_size,
+                actual_target
+            );
         }
-        
+
         Ok(())
     }
 
     /// Get optimal engine based on current load
     async fn get_optimal_engine(&self) -> (usize, Arc<RwLock<FheEngine>>) {
         let stats = self.pool_stats.read().await;
-        
+
         // Find engine with lowest utilization
-        let optimal_idx = stats.engine_utilization
+        let optimal_idx = stats
+            .engine_utilization
             .iter()
             .min_by_key(|(_, &utilization)| utilization)
             .map(|(&idx, _)| idx)
             .unwrap_or(0);
-        
+
         drop(stats);
         (optimal_idx, self.engines[optimal_idx].clone())
     }
@@ -109,12 +118,15 @@ impl FheConnectionPool {
 
     /// Perform encryption with load balancing
     pub async fn encrypt_balanced(&self, client_id: Uuid, plaintext: &str) -> Result<Ciphertext> {
-        let _permit = self.max_concurrent_ops.acquire().await
+        let _permit = self
+            .max_concurrent_ops
+            .acquire()
+            .await
             .map_err(|_| Error::Internal("Failed to acquire semaphore permit".to_string()))?;
-        
+
         let start = Instant::now();
         let (engine_idx, engine) = self.get_optimal_engine().await;
-        
+
         // Update stats
         {
             let mut stats = self.pool_stats.write().await;
@@ -134,7 +146,7 @@ impl FheConnectionPool {
             let mut stats = self.pool_stats.write().await;
             stats.active_operations -= 1;
             *stats.engine_utilization.get_mut(&engine_idx).unwrap() += 1;
-            
+
             // Update average operation time (simple moving average)
             let current_avg = stats.avg_operation_time.as_millis() as f64;
             let new_avg = (current_avg + elapsed.as_millis() as f64) / 2.0;
@@ -146,13 +158,20 @@ impl FheConnectionPool {
     }
 
     /// Perform decryption with load balancing
-    pub async fn decrypt_balanced(&self, client_id: Uuid, ciphertext: &Ciphertext) -> Result<String> {
-        let _permit = self.max_concurrent_ops.acquire().await
+    pub async fn decrypt_balanced(
+        &self,
+        client_id: Uuid,
+        ciphertext: &Ciphertext,
+    ) -> Result<String> {
+        let _permit = self
+            .max_concurrent_ops
+            .acquire()
+            .await
             .map_err(|_| Error::Internal("Failed to acquire semaphore permit".to_string()))?;
-        
+
         let start = Instant::now();
         let (engine_idx, engine) = self.get_optimal_engine().await;
-        
+
         {
             let mut stats = self.pool_stats.write().await;
             stats.active_operations += 1;
@@ -184,24 +203,26 @@ impl FheConnectionPool {
     /// Health check for all engines
     pub async fn health_check(&self) -> Vec<bool> {
         let mut health_status = Vec::new();
-        
+
         for (i, engine) in self.engines.iter().enumerate() {
             let is_healthy = match tokio::time::timeout(Duration::from_secs(5), async {
                 let engine = engine.read().await;
                 // Simple health check - try to get parameters
                 let _params = engine.get_params();
                 true
-            }).await {
+            })
+            .await
+            {
                 Ok(result) => result,
                 Err(_) => false,
             };
-            
+
             health_status.push(is_healthy);
             if !is_healthy {
                 log::warn!("FHE engine {} failed health check", i);
             }
         }
-        
+
         health_status
     }
 }
@@ -224,8 +245,14 @@ struct BatchOperation {
 
 #[derive(Debug, Clone)]
 enum BatchOperationType {
-    Encrypt { client_id: Uuid, plaintext: String },
-    Decrypt { client_id: Uuid, ciphertext: Ciphertext },
+    Encrypt {
+        client_id: Uuid,
+        plaintext: String,
+    },
+    Decrypt {
+        client_id: Uuid,
+        ciphertext: Ciphertext,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -251,24 +278,25 @@ impl BatchProcessor {
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(flush_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let operations = {
                     let mut pending = pending_operations.write().await;
                     if pending.is_empty() {
                         continue;
                     }
-                    
+
                     let to_process = if pending.len() >= batch_size {
                         pending.drain(0..batch_size).collect::<Vec<_>>()
                     } else {
                         // Process all if batch timeout reached
-                        let oldest_age = pending.first()
+                        let oldest_age = pending
+                            .first()
                             .map(|op| op.timestamp.elapsed())
                             .unwrap_or(Duration::ZERO);
-                        
+
                         if oldest_age >= flush_interval {
                             pending.drain(..).collect::<Vec<_>>()
                         } else {
@@ -284,30 +312,39 @@ impl BatchProcessor {
         });
 
         self.processor_handle = Some(handle);
-        log::info!("Started batch processor with batch_size={}, flush_interval={:?}", 
-                   batch_size, flush_interval);
+        log::info!(
+            "Started batch processor with batch_size={}, flush_interval={:?}",
+            batch_size,
+            flush_interval
+        );
         Ok(())
     }
 
     async fn process_batch(operations: Vec<BatchOperation>, pool: Arc<FheConnectionPool>) {
         log::debug!("Processing batch of {} operations", operations.len());
-        
+
         let mut tasks = Vec::new();
-        
+
         for operation in operations {
             let pool = pool.clone();
             let task = tokio::spawn(async move {
                 let result = match operation.operation_type {
-                    BatchOperationType::Encrypt { client_id, plaintext } => {
-                        pool.encrypt_balanced(client_id, &plaintext).await
-                            .map(BatchResult::Encrypted)
-                    }
-                    BatchOperationType::Decrypt { client_id, ciphertext } => {
-                        pool.decrypt_balanced(client_id, &ciphertext).await
-                            .map(BatchResult::Decrypted)
-                    }
+                    BatchOperationType::Encrypt {
+                        client_id,
+                        plaintext,
+                    } => pool
+                        .encrypt_balanced(client_id, &plaintext)
+                        .await
+                        .map(BatchResult::Encrypted),
+                    BatchOperationType::Decrypt {
+                        client_id,
+                        ciphertext,
+                    } => pool
+                        .decrypt_balanced(client_id, &ciphertext)
+                        .await
+                        .map(BatchResult::Decrypted),
                 };
-                
+
                 (operation.id, result)
             });
             tasks.push(task);
@@ -415,7 +452,8 @@ impl CiphertextCache {
 
     async fn evict_lru(&self, cache: &mut HashMap<Uuid, CacheEntry>, stats: &mut CacheStats) {
         // Find entry with oldest last_accessed time
-        let oldest_id = cache.iter()
+        let oldest_id = cache
+            .iter()
             .min_by_key(|(_, entry)| entry.last_accessed)
             .map(|(id, _)| *id);
 
@@ -429,9 +467,10 @@ impl CiphertextCache {
     pub async fn cleanup_expired(&self) {
         let mut cache = self.cache.write().await;
         let mut stats = self.stats.write().await;
-        
+
         let now = Instant::now();
-        let expired_keys: Vec<Uuid> = cache.iter()
+        let expired_keys: Vec<Uuid> = cache
+            .iter()
             .filter(|(_, entry)| now.duration_since(entry.last_accessed) > self.ttl)
             .map(|(id, _)| *id)
             .collect();
@@ -440,11 +479,14 @@ impl CiphertextCache {
             cache.remove(&key);
             stats.evictions += 1;
         }
-        
+
         stats.current_size = cache.len();
-        
+
         if !cache.is_empty() {
-            log::debug!("Cleaned up expired cache entries, {} entries remaining", cache.len());
+            log::debug!(
+                "Cleaned up expired cache entries, {} entries remaining",
+                cache.len()
+            );
         }
     }
 
@@ -455,11 +497,14 @@ impl CiphertextCache {
     /// Intelligent prefetching based on access patterns
     pub async fn prefetch_likely_accessed(&self, prediction_engine: &PredictionEngine) {
         let access_predictions = prediction_engine.predict_next_accesses().await;
-        
+
         for prediction in access_predictions {
             if let Some(ciphertext) = self.get(&prediction.ciphertext_id).await {
-                log::debug!("Prefetched ciphertext {} (confidence: {:.2})", 
-                          prediction.ciphertext_id, prediction.confidence);
+                log::debug!(
+                    "Prefetched ciphertext {} (confidence: {:.2})",
+                    prediction.ciphertext_id,
+                    prediction.confidence
+                );
             }
         }
     }
@@ -467,11 +512,11 @@ impl CiphertextCache {
     /// Warm up cache with commonly accessed ciphertexts
     pub async fn warm_cache(&self, warm_up_data: Vec<(Uuid, Ciphertext)>) {
         log::info!("Warming cache with {} entries", warm_up_data.len());
-        
+
         for (id, ciphertext) in warm_up_data {
             self.put(id, ciphertext).await;
         }
-        
+
         let stats = self.get_stats().await;
         log::info!("Cache warmed: {} entries loaded", stats.current_size);
     }
@@ -527,7 +572,7 @@ impl PredictionEngine {
 
         pattern.access_count += 1;
         pattern.last_access = Instant::now();
-        
+
         // Update frequency (simplified calculation)
         let hours_since_first = pattern.access_count as f64 / 24.0; // Approximate
         pattern.access_frequency = pattern.access_count as f64 / hours_since_first.max(1.0);
@@ -539,19 +584,22 @@ impl PredictionEngine {
         let mut predictions = Vec::new();
 
         for (&ciphertext_id, pattern) in patterns.iter() {
-            let recency_score = 1.0 / (1.0 + pattern.last_access.elapsed().as_secs() as f64 / 3600.0);
+            let recency_score =
+                1.0 / (1.0 + pattern.last_access.elapsed().as_secs() as f64 / 3600.0);
             let frequency_score = pattern.access_frequency / 10.0; // Normalize
             let correlation_score = pattern.correlation_score;
 
-            let confidence = model.weights[0] * frequency_score +
-                           model.weights[1] * recency_score +
-                           model.weights[2] * correlation_score;
+            let confidence = model.weights[0] * frequency_score
+                + model.weights[1] * recency_score
+                + model.weights[2] * correlation_score;
 
             if confidence > model.threshold {
                 predictions.push(AccessPrediction {
                     ciphertext_id,
                     confidence,
-                    predicted_access_time: Duration::from_secs((3600.0 / pattern.access_frequency) as u64),
+                    predicted_access_time: Duration::from_secs(
+                        (3600.0 / pattern.access_frequency) as u64,
+                    ),
                 });
             }
         }
@@ -606,26 +654,34 @@ impl AutoScaler {
         }
 
         let current = self.current_replicas.load(Ordering::Relaxed);
-        
+
         // Evaluate scale up conditions
-        if (metrics.cpu_utilization > self.scale_up_threshold || 
-            metrics.queue_length > self.target_queue_length) &&
-            current < self.max_replicas {
+        if (metrics.cpu_utilization > self.scale_up_threshold
+            || metrics.queue_length > self.target_queue_length)
+            && current < self.max_replicas
+        {
             return ScalingDecision::ScaleUp {
                 from: current,
                 to: (current + 1).min(self.max_replicas),
-                reason: format!("CPU: {:.1}%, Queue: {}", metrics.cpu_utilization, metrics.queue_length),
+                reason: format!(
+                    "CPU: {:.1}%, Queue: {}",
+                    metrics.cpu_utilization, metrics.queue_length
+                ),
             };
         }
 
         // Evaluate scale down conditions
-        if metrics.cpu_utilization < self.scale_down_threshold &&
-           metrics.queue_length < self.target_queue_length / 2 &&
-           current > self.min_replicas {
+        if metrics.cpu_utilization < self.scale_down_threshold
+            && metrics.queue_length < self.target_queue_length / 2
+            && current > self.min_replicas
+        {
             return ScalingDecision::ScaleDown {
                 from: current,
                 to: (current - 1).max(self.min_replicas),
-                reason: format!("CPU: {:.1}%, Queue: {}", metrics.cpu_utilization, metrics.queue_length),
+                reason: format!(
+                    "CPU: {:.1}%, Queue: {}",
+                    metrics.cpu_utilization, metrics.queue_length
+                ),
             };
         }
 
@@ -665,8 +721,16 @@ pub struct ScalingMetrics {
 
 #[derive(Debug, Clone)]
 pub enum ScalingDecision {
-    ScaleUp { from: usize, to: usize, reason: String },
-    ScaleDown { from: usize, to: usize, reason: String },
+    ScaleUp {
+        from: usize,
+        to: usize,
+        reason: String,
+    },
+    ScaleDown {
+        from: usize,
+        to: usize,
+        reason: String,
+    },
     NoAction,
 }
 
@@ -684,9 +748,9 @@ pub struct CircuitBreaker {
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 enum CircuitState {
-    Closed,    // Normal operation
-    Open,      // Failing, reject requests
-    HalfOpen,  // Testing if service recovered
+    Closed,   // Normal operation
+    Open,     // Failing, reject requests
+    HalfOpen, // Testing if service recovered
 }
 
 impl CircuitBreaker {
@@ -708,7 +772,7 @@ impl CircuitBreaker {
         E: std::fmt::Display + std::fmt::Debug,
     {
         let state = *self.state.read().await;
-        
+
         match state {
             CircuitState::Open => {
                 // Check if timeout has passed
@@ -739,14 +803,17 @@ impl CircuitBreaker {
             }
             Err(e) => {
                 self.on_failure().await;
-                Err(Error::Internal(format!("Circuit breaker operation failed: {}", e)))
+                Err(Error::Internal(format!(
+                    "Circuit breaker operation failed: {}",
+                    e
+                )))
             }
         }
     }
 
     async fn on_success(&self) {
         let success_count = self.success_count.fetch_add(1, Ordering::Relaxed) + 1;
-        
+
         let state = *self.state.read().await;
         if state == CircuitState::HalfOpen && success_count >= self.success_threshold as u64 {
             *self.state.write().await = CircuitState::Closed;
@@ -759,7 +826,7 @@ impl CircuitBreaker {
     async fn on_failure(&self) {
         let failure_count = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
         *self.last_failure_time.write().await = Some(Instant::now());
-        
+
         if failure_count >= self.failure_threshold as u64 {
             *self.state.write().await = CircuitState::Open;
             log::warn!("Circuit breaker opened after {} failures", failure_count);
@@ -780,38 +847,40 @@ mod tests {
     async fn test_fhe_connection_pool() {
         let params = FheParams::default();
         let pool = FheConnectionPool::new(2, 4, params).unwrap();
-        
+
         // Generate keys in the first engine and replicate to others
         let client_id = {
             let mut first_engine = pool.engines[0].write().await;
             let (client_id, _) = first_engine.generate_keys().unwrap();
             client_id
         };
-        
+
         // Replicate the client key to all other engines to handle load balancing
         let client_key = {
             let first_engine = pool.engines[0].read().await;
             first_engine.client_keys.get(&client_id).unwrap().clone()
         };
-        
-        for (i, pool_engine) in pool.engines.iter().enumerate() {
-            if i > 0 { // Skip first engine as it already has the key
-                let mut engine_guard = pool_engine.write().await;
-                engine_guard.client_keys.insert(client_id, client_key.clone());
-            }
 
+        for (i, pool_engine) in pool.engines.iter().enumerate() {
+            if i > 0 {
+                // Skip first engine as it already has the key
+                let mut engine_guard = pool_engine.write().await;
+                engine_guard
+                    .client_keys
+                    .insert(client_id, client_key.clone());
+            }
         }
-        
+
         let plaintext = "Hello, world!";
-        
+
         // Test encryption
         let ciphertext = pool.encrypt_balanced(client_id, plaintext).await.unwrap();
         assert!(!ciphertext.data.is_empty());
-        
+
         // Test decryption
         let decrypted = pool.decrypt_balanced(client_id, &ciphertext).await.unwrap();
         assert_eq!(decrypted, plaintext);
-        
+
         // Check stats
         let stats = pool.get_stats().await;
         assert_eq!(stats.total_operations, 2);
@@ -827,12 +896,12 @@ mod tests {
             params: FheParams::default(),
             noise_budget: Some(50),
         };
-        
+
         // Test put and get
         cache.put(id, ciphertext.clone()).await;
         let retrieved = cache.get(&id).await.unwrap();
         assert_eq!(retrieved.data, ciphertext.data);
-        
+
         // Test cache stats
         let stats = cache.get_stats().await;
         assert_eq!(stats.hits, 1);
@@ -842,20 +911,20 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker() {
         let breaker = CircuitBreaker::new(2, 1, Duration::from_millis(100));
-        
+
         // Test successful operation
         let result = breaker.call(async { Ok::<i32, &str>(42) }).await;
         assert!(result.is_ok());
-        
+
         // Test failures
         for _ in 0..2 {
             let _ = breaker.call(async { Err::<i32, &str>("failure") }).await;
         }
-        
+
         // Circuit should be open now
         let state = breaker.get_state().await;
         assert_eq!(state, CircuitState::Open);
-        
+
         // Test that requests are rejected
         let result = breaker.call(async { Ok::<i32, &str>(42) }).await;
         assert!(result.is_err());
@@ -864,10 +933,10 @@ mod tests {
     #[tokio::test]
     async fn test_auto_scaler() {
         let scaler = AutoScaler::new(70.0, 10, 1, 5, Duration::from_millis(50));
-        
+
         // Wait for cooldown period to pass
         sleep(Duration::from_millis(60)).await;
-        
+
         let metrics = ScalingMetrics {
             cpu_utilization: 85.0,
             memory_utilization: 60.0,
@@ -875,9 +944,9 @@ mod tests {
             active_connections: 20,
             response_time_p95: Duration::from_millis(200),
         };
-        
+
         let decision = scaler.evaluate_scaling(&metrics).await;
-        
+
         match decision {
             ScalingDecision::ScaleUp { from, to, .. } => {
                 assert_eq!(from, 1);

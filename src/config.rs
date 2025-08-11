@@ -1,9 +1,9 @@
 //! Configuration management for FHE LLM Proxy
 
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::env;
 use crate::error::{Error, Result};
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::fs;
 
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,108 +142,122 @@ impl Config {
         } else {
             Self::default()
         };
-        
+
         // Override with environment variables
         config.load_from_env();
-        
+
         Ok(config)
     }
-    
+
     /// Load configuration from environment variables
     pub fn load_from_env(&mut self) {
         if let Ok(host) = env::var("FHE_HOST") {
             self.server.host = host;
         }
-        
+
         if let Ok(port) = env::var("FHE_PORT") {
             if let Ok(port) = port.parse() {
                 self.server.port = port;
             }
         }
-        
+
         if let Ok(openai_key) = env::var("OPENAI_API_KEY") {
             self.llm.openai_api_key = Some(openai_key);
         }
-        
+
         if let Ok(anthropic_key) = env::var("ANTHROPIC_API_KEY") {
             self.llm.anthropic_api_key = Some(anthropic_key);
         }
-        
+
         if let Ok(gpu_enabled) = env::var("FHE_GPU_ENABLED") {
             self.gpu.enabled = gpu_enabled.to_lowercase() == "true";
         }
-        
+
         if let Ok(device_id) = env::var("FHE_GPU_DEVICE_ID") {
             if let Ok(device_id) = device_id.parse() {
                 self.gpu.device_id = device_id;
             }
         }
-        
+
         if let Ok(log_level) = env::var("RUST_LOG") {
             self.monitoring.log_level = log_level;
         }
-        
+
         if let Ok(metrics_enabled) = env::var("FHE_METRICS_ENABLED") {
             self.monitoring.metrics_enabled = metrics_enabled.to_lowercase() == "true";
         }
-        
+
         if let Ok(poly_degree) = env::var("FHE_POLY_MODULUS_DEGREE") {
             if let Ok(degree) = poly_degree.parse() {
                 self.encryption.poly_modulus_degree = degree;
             }
         }
-        
+
         if let Ok(security_level) = env::var("FHE_SECURITY_LEVEL") {
             if let Ok(level) = security_level.parse() {
                 self.encryption.security_level = level;
             }
         }
     }
-    
+
     /// Validate configuration
     pub fn validate(&self) -> Result<()> {
         // Validate server configuration
         if self.server.port == 0 {
             return Err(Error::Config("Invalid server port".to_string()));
         }
-        
+
         if self.server.workers == 0 {
-            return Err(Error::Config("Worker count must be greater than 0".to_string()));
+            return Err(Error::Config(
+                "Worker count must be greater than 0".to_string(),
+            ));
         }
-        
+
         // Validate encryption parameters
         if !self.encryption.poly_modulus_degree.is_power_of_two() {
-            return Err(Error::Config("Poly modulus degree must be a power of 2".to_string()));
+            return Err(Error::Config(
+                "Poly modulus degree must be a power of 2".to_string(),
+            ));
         }
-        
+
         if self.encryption.coeff_modulus_bits.is_empty() {
-            return Err(Error::Config("Coefficient modulus bits cannot be empty".to_string()));
+            return Err(Error::Config(
+                "Coefficient modulus bits cannot be empty".to_string(),
+            ));
         }
-        
+
         // Validate privacy parameters
         if self.privacy.epsilon_per_query <= 0.0 {
-            return Err(Error::Config("Epsilon per query must be positive".to_string()));
+            return Err(Error::Config(
+                "Epsilon per query must be positive".to_string(),
+            ));
         }
-        
+
         if self.privacy.delta <= 0.0 || self.privacy.delta >= 1.0 {
             return Err(Error::Config("Delta must be in (0, 1)".to_string()));
         }
-        
+
         // Validate GPU configuration
         if self.gpu.enabled && self.gpu.batch_size == 0 {
-            return Err(Error::Config("GPU batch size must be greater than 0".to_string()));
+            return Err(Error::Config(
+                "GPU batch size must be greater than 0".to_string(),
+            ));
         }
-        
+
         Ok(())
     }
-    
+
     /// Get configuration summary for logging
     pub fn summary(&self) -> String {
         format!(
             "FHE Proxy Config - Server: {}:{}, GPU: {}, Security: {}",
             self.server.host,
             self.server.port,
-            if self.gpu.enabled { "enabled" } else { "disabled" },
+            if self.gpu.enabled {
+                "enabled"
+            } else {
+                "disabled"
+            },
             self.encryption.security_level
         )
     }

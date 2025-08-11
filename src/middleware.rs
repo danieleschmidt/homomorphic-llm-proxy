@@ -1,13 +1,13 @@
 //! Middleware for request/response processing, rate limiting, and metrics
 
 use crate::error::{Error, Result};
-use serde::{Serialize, Deserialize};
 use axum::{
     extract::Request,
     http::{HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -43,13 +43,14 @@ impl RateLimiter {
         let mut clients = self.clients.write().await;
         let now = Instant::now();
 
-        let client_limiter = clients
-            .entry(client_ip.to_string())
-            .or_insert_with(|| ClientLimiter {
-                requests: AtomicU64::new(0),
-                window_start: now,
-                blocked_until: None,
-            });
+        let client_limiter =
+            clients
+                .entry(client_ip.to_string())
+                .or_insert_with(|| ClientLimiter {
+                    requests: AtomicU64::new(0),
+                    window_start: now,
+                    blocked_until: None,
+                });
 
         // Check if client is still blocked
         if let Some(blocked_until) = client_limiter.blocked_until {
@@ -79,7 +80,8 @@ impl RateLimiter {
         let clients = self.clients.read().await;
         let client = clients.get(client_ip)?;
         let requests = client.requests.load(Ordering::Relaxed);
-        let window_remaining = self.window_duration
+        let window_remaining = self
+            .window_duration
             .saturating_sub(Instant::now().duration_since(client.window_start));
         Some((requests, window_remaining))
     }
@@ -152,14 +154,23 @@ pub struct MetricsSnapshot {
 /// Security headers middleware
 pub fn security_headers(mut response: Response) -> Response {
     let headers = response.headers_mut();
-    
+
     headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
     headers.insert("X-Frame-Options", "DENY".parse().unwrap());
     headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
-    headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
-    headers.insert("Content-Security-Policy", "default-src 'self'".parse().unwrap());
-    headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
-    
+    headers.insert(
+        "Strict-Transport-Security",
+        "max-age=31536000; includeSubDomains".parse().unwrap(),
+    );
+    headers.insert(
+        "Content-Security-Policy",
+        "default-src 'self'".parse().unwrap(),
+    );
+    headers.insert(
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin".parse().unwrap(),
+    );
+
     response
 }
 
@@ -176,8 +187,9 @@ pub async fn validate_request(
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
 
-        if !content_type.starts_with("application/json") 
-            && !content_type.starts_with("application/octet-stream") {
+        if !content_type.starts_with("application/json")
+            && !content_type.starts_with("application/octet-stream")
+        {
             log::warn!("Invalid content type: {}", content_type);
             return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
         }
@@ -187,7 +199,8 @@ pub async fn validate_request(
     if let Some(content_length) = headers.get("content-length") {
         if let Ok(length_str) = content_length.to_str() {
             if let Ok(length) = length_str.parse::<usize>() {
-                if length > 10 * 1024 * 1024 { // 10MB limit
+                if length > 10 * 1024 * 1024 {
+                    // 10MB limit
                     log::warn!("Request too large: {} bytes", length);
                     return Err(StatusCode::PAYLOAD_TOO_LARGE);
                 }
@@ -248,7 +261,12 @@ impl PrivacyBudgetTracker {
         }
     }
 
-    pub async fn check_budget(&self, user_id: &str, epsilon_cost: f64, delta_cost: f64) -> Result<bool> {
+    pub async fn check_budget(
+        &self,
+        user_id: &str,
+        epsilon_cost: f64,
+        delta_cost: f64,
+    ) -> Result<bool> {
         let mut budgets = self.user_budgets.write().await;
         let budget = budgets
             .entry(user_id.to_string())
@@ -272,7 +290,11 @@ impl PrivacyBudgetTracker {
 
         log::debug!(
             "Privacy budget consumed for user {}: ε={:.3}, δ={:.6}, remaining: ε={:.3}, δ={:.6}",
-            user_id, epsilon_cost, delta_cost, budget.remaining_epsilon, budget.remaining_delta
+            user_id,
+            epsilon_cost,
+            delta_cost,
+            budget.remaining_epsilon,
+            budget.remaining_delta
         );
 
         Ok(true)
@@ -309,22 +331,29 @@ pub fn sanitize_text_input(input: &str) -> String {
 
 /// Validate UUID format
 pub fn validate_uuid(uuid_str: &str) -> Result<Uuid> {
-    uuid_str.parse::<Uuid>()
+    uuid_str
+        .parse::<Uuid>()
         .map_err(|_| Error::Validation(format!("Invalid UUID format: {}", uuid_str)))
 }
 
 /// Validate encryption parameters
 pub fn validate_fhe_params(poly_degree: usize, security_level: u8) -> Result<()> {
     if !poly_degree.is_power_of_two() {
-        return Err(Error::Validation("Polynomial modulus degree must be a power of 2".to_string()));
+        return Err(Error::Validation(
+            "Polynomial modulus degree must be a power of 2".to_string(),
+        ));
     }
 
     if poly_degree < 1024 || poly_degree > 32768 {
-        return Err(Error::Validation("Polynomial modulus degree must be between 1024 and 32768".to_string()));
+        return Err(Error::Validation(
+            "Polynomial modulus degree must be between 1024 and 32768".to_string(),
+        ));
     }
 
     if security_level != 128 && security_level != 192 {
-        return Err(Error::Validation("Security level must be 128 or 192".to_string()));
+        return Err(Error::Validation(
+            "Security level must be 128 or 192".to_string(),
+        ));
     }
 
     Ok(())
@@ -333,7 +362,7 @@ pub fn validate_fhe_params(poly_degree: usize, security_level: u8) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep};
+    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_rate_limiter() {
@@ -393,10 +422,10 @@ mod tests {
     fn test_fhe_params_validation() {
         // Valid parameters
         assert!(validate_fhe_params(16384, 128).is_ok());
-        
+
         // Invalid polynomial degree (not power of 2)
         assert!(validate_fhe_params(15000, 128).is_err());
-        
+
         // Invalid security level
         assert!(validate_fhe_params(16384, 100).is_err());
     }
