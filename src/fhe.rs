@@ -129,14 +129,31 @@ impl FheEngine {
             ));
         }
 
-        // Sanitize input
+        // Enhanced input sanitization with security focus
         let sanitized_text = plaintext
             .chars()
-            .filter(|c| c.is_ascii() && (!c.is_control() || c.is_whitespace()))
+            .filter(|c| {
+                c.is_ascii() && 
+                (!c.is_control() || c.is_whitespace()) && 
+                *c != '\0' && // Null byte protection
+                !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F') // Control chars
+            })
             .collect::<String>();
 
         if sanitized_text != plaintext {
-            log::warn!("Input sanitized during encryption for client {}", client_id);
+            log::warn!("Input sanitized during encryption for client {} (removed {} characters)", 
+                client_id, plaintext.len() - sanitized_text.len());
+        }
+
+        // Additional security check for potential injection patterns
+        let suspicious_patterns = ["<script", "javascript:", "data:", "vbscript:", "onload=", "onerror="];
+        let lowercase_text = sanitized_text.to_lowercase();
+        for pattern in &suspicious_patterns {
+            if lowercase_text.contains(pattern) {
+                log::warn!("Potentially malicious pattern detected in encryption input for client {}: {}", 
+                    client_id, pattern);
+                return Err(Error::Validation("Input contains potentially malicious content".to_string()));
+            }
         }
 
         log::debug!(
@@ -202,22 +219,61 @@ impl FheEngine {
         String::from_utf8(text_bytes).map_err(|e| Error::Fhe(format!("UTF-8 decode error: {}", e)))
     }
 
-    /// Perform homomorphic string concatenation (simplified)
+    /// Perform homomorphic string concatenation with enhanced security
     pub fn concatenate_encrypted(&self, a: &Ciphertext, b: &Ciphertext) -> Result<Ciphertext> {
         log::debug!("Concatenating ciphertexts {} and {}", a.id, b.id);
 
+        // Validate ciphertext parameters compatibility
         if a.params.poly_modulus_degree != b.params.poly_modulus_degree {
             return Err(Error::Fhe("Incompatible ciphertext parameters".to_string()));
         }
 
-        // Simple concatenation of encrypted data
-        let mut concatenated_data = a.data.clone();
+        if a.params.security_level != b.params.security_level {
+            return Err(Error::Fhe("Mismatched security levels".to_string()));
+        }
+
+        // Check for potential overflow in concatenated size
+        let total_size = a.data.len().saturating_add(b.data.len());
+        if total_size > 1_000_000 { // 1MB limit
+            return Err(Error::Fhe("Concatenated ciphertext would exceed size limit".to_string()));
+        }
+
+        // Validate noise budgets before operation
+        match (a.noise_budget, b.noise_budget) {
+            (Some(a_budget), Some(b_budget)) => {
+                if a_budget < 10 || b_budget < 10 {
+                    return Err(Error::Fhe("Insufficient noise budget for concatenation".to_string()));
+                }
+            }
+            _ => {
+                log::warn!("Missing noise budget information for concatenation");
+            }
+        }
+
+        // Perform concatenation with metadata preservation
+        let mut concatenated_data = Vec::with_capacity(total_size);
+        
+        // Add operation header for audit trail
+        let op_header = format!("CONCAT|{}|{}", a.id, b.id);
+        let header_bytes = op_header.as_bytes();
+        concatenated_data.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
+        concatenated_data.extend_from_slice(header_bytes);
+        
+        // Concatenate actual ciphertext data
+        concatenated_data.extend_from_slice(&a.data);
         concatenated_data.extend_from_slice(&b.data);
 
+        // Calculate remaining noise budget (conservative estimate)
         let noise_budget = match (a.noise_budget, b.noise_budget) {
-            (Some(a_budget), Some(b_budget)) => Some(a_budget.min(b_budget) - 1),
+            (Some(a_budget), Some(b_budget)) => {
+                let min_budget = a_budget.min(b_budget);
+                Some(min_budget.saturating_sub(3)) // Subtract cost of operation
+            }
             _ => None,
         };
+
+        log::info!("Successfully concatenated ciphertexts {} + {} -> new size: {} bytes", 
+            a.id, b.id, concatenated_data.len());
 
         Ok(Ciphertext {
             id: Uuid::new_v4(),
