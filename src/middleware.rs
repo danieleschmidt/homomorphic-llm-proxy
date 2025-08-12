@@ -317,16 +317,61 @@ impl PrivacyBudgetTracker {
     }
 }
 
-/// Input sanitization utilities
+/// Enhanced input sanitization utilities with security focus
 pub fn sanitize_text_input(input: &str) -> String {
     // Remove potential injection patterns and normalize input
-    input
+    let sanitized = input
         .chars()
-        .filter(|c| c.is_ascii() && !c.is_control() || c.is_whitespace())
+        .filter(|c| {
+            c.is_ascii() && 
+            (!c.is_control() || c.is_whitespace()) &&
+            *c != '\0' && // Null byte protection
+            !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F')
+        })
         .take(10_000) // Limit input size
-        .collect::<String>()
-        .trim()
-        .to_string()
+        .collect::<String>();
+
+    // Additional security filters
+    let result = sanitized
+        .replace("javascript:", "")
+        .replace("data:", "")
+        .replace("vbscript:", "")
+        .replace("<script", "&lt;script")
+        .replace("</script", "&lt;/script");
+    
+    result.trim().to_string()
+}
+
+/// Advanced threat detection for input validation
+pub fn detect_threats(input: &str) -> Vec<String> {
+    let mut threats = Vec::new();
+    let lower_input = input.to_lowercase();
+    
+    // SQL injection patterns
+    let sql_patterns = ["select ", "union ", "insert ", "delete ", "drop ", "exec ", "script"];
+    for pattern in &sql_patterns {
+        if lower_input.contains(pattern) {
+            threats.push(format!("Potential SQL injection: {}", pattern));
+        }
+    }
+    
+    // XSS patterns
+    let xss_patterns = ["<script", "javascript:", "onload=", "onerror=", "onclick="];
+    for pattern in &xss_patterns {
+        if lower_input.contains(pattern) {
+            threats.push(format!("Potential XSS: {}", pattern));
+        }
+    }
+    
+    // Command injection patterns
+    let cmd_patterns = ["; ", "| ", "& ", "$(", "`", "exec("];
+    for pattern in &cmd_patterns {
+        if lower_input.contains(pattern) {
+            threats.push(format!("Potential command injection: {}", pattern));
+        }
+    }
+    
+    threats
 }
 
 /// Validate UUID format
