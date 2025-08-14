@@ -1,0 +1,56 @@
+# Performance tuning configuration for FHE LLM Proxy
+
+[server]
+# Optimized server settings for high throughput
+workers = 8
+max_connections = 10000
+keep_alive_timeout = 75
+read_timeout = 30
+write_timeout = 30
+
+[fhe]
+# FHE engine optimization
+batch_size = 64
+worker_threads = 16
+key_cache_size = 10000
+ciphertext_pool_size = 1000
+
+[gpu]
+# GPU acceleration settings
+enabled = true
+device_id = 0
+memory_pool_size = "4GB"
+batch_processing = true
+pipeline_stages = 4
+
+[caching]
+# Advanced caching configuration
+max_memory_mb = 8192
+ttl_seconds = 3600
+compression_enabled = true
+prefetch_enabled = true
+eviction_policy = "lru"
+
+[monitoring]
+# High-frequency monitoring for production
+metrics_interval_ms = 100
+detailed_profiling = true
+memory_tracking = true
+cpu_profiling = true
+
+[scaling]
+# Auto-scaling parameters
+min_replicas = 3
+max_replicas = 20
+target_cpu_percent = 70
+scale_up_threshold = 80
+scale_down_threshold = 30
+cooldown_period_seconds = 300
+
+[security]
+# Enhanced security for production
+rate_limit_per_minute = 1000
+max_request_size_mb = 100
+ip_whitelist_enabled = false
+api_key_rotation_hours = 24
+audit_logging = true

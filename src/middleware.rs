@@ -407,7 +407,6 @@ pub fn validate_fhe_params(poly_degree: usize, security_level: u8) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_rate_limiter() {

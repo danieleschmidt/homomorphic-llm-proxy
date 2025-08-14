@@ -499,7 +499,7 @@ impl CiphertextCache {
         let access_predictions = prediction_engine.predict_next_accesses().await;
 
         for prediction in access_predictions {
-            if let Some(ciphertext) = self.get(&prediction.ciphertext_id).await {
+            if let Some(_ciphertext) = self.get(&prediction.ciphertext_id).await {
                 log::debug!(
                     "Prefetched ciphertext {} (confidence: {:.2})",
                     prediction.ciphertext_id,
@@ -874,7 +874,7 @@ mod tests {
         let plaintext = "Hello, world!";
 
         // Test encryption
-        let ciphertext = pool.encrypt_balanced(client_id, plaintext).await.unwrap();
+        let _ciphertext = pool.encrypt_balanced(client_id, plaintext).await.unwrap();
         assert!(!ciphertext.data.is_empty());
 
         // Test decryption
@@ -890,7 +890,7 @@ mod tests {
     async fn test_ciphertext_cache() {
         let cache = CiphertextCache::new(2, Duration::from_secs(1));
         let id = Uuid::new_v4();
-        let ciphertext = Ciphertext {
+        let _ciphertext = Ciphertext {
             id,
             data: vec![1, 2, 3, 4],
             params: FheParams::default(),
