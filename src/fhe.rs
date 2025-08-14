@@ -471,8 +471,8 @@ impl FheEngine {
         }
 
         let new_server_id = Uuid::new_v4();
-        let mut rng = rand::thread_rng();
-        let server_key_data: Vec<u8> = (0..256).map(|_| rng.gen()).collect();
+        let mut rng = rand::rng();
+        let server_key_data: Vec<u8> = (0..256).map(|_| rng.random()).collect();
 
         self.server_keys.insert(
             new_server_id,
@@ -523,8 +523,8 @@ impl FheEngine {
 
     /// Cleanup expired keys to prevent memory leaks
     pub fn cleanup_expired_keys(&mut self, max_age: std::time::Duration) -> Result<usize> {
-        let now = std::time::Instant::now();
-        let mut removed_count = 0;
+        let _now = std::time::Instant::now();
+        let removed_count = 0;
 
         // Note: In a real implementation, you'd store creation timestamps with keys
         // For simulation, we'll just log the cleanup operation
@@ -568,8 +568,8 @@ impl FheEngine {
             .ok_or_else(|| Error::Fhe("Client key not found".to_string()))?;
 
         // Simulate compressed public key generation
-        let mut rng = rand::thread_rng();
-        let compressed_key: Vec<u8> = (0..64).map(|_| rng.gen()).collect();
+        let mut rng = rand::rng();
+        let compressed_key: Vec<u8> = (0..64).map(|_| rng.random()).collect();
 
         log::debug!(
             "Generated compressed public key for client {}: {} bytes",

@@ -291,19 +291,19 @@ impl ProxyServer {
             .route("/metrics/detailed", get(get_detailed_metrics))
             // Core FHE endpoints
             .route("/v1/keys/generate", post(generate_keys))
-            .route("/v1/keys/rotate/:client_id", post(rotate_client_keys))
+            .route("/v1/keys/rotate/{client_id}", post(rotate_client_keys))
             .route("/v1/encrypt", post(encrypt_text))
             .route("/v1/decrypt", post(decrypt_text))
             .route("/v1/chat/completions", post(process_encrypted_completion))
             .route("/v1/chat/stream", post(stream_encrypted_completion))
-            .route("/v1/ciphertext/:id", get(get_ciphertext))
-            .route("/v1/ciphertext/:id/validate", post(validate_ciphertext))
+            .route("/v1/ciphertext/{id}", get(get_ciphertext))
+            .route("/v1/ciphertext/{id}/validate", post(validate_ciphertext))
             .route("/v1/params", get(get_fhe_params))
             .route("/v1/concatenate", post(concatenate_ciphertexts))
             // Session and admin endpoints
-            .route("/v1/sessions/:id/stats", get(get_session_stats))
-            .route("/v1/privacy/budget/:user", get(get_privacy_budget))
-            .route("/v1/privacy/budget/:user/reset", post(reset_privacy_budget))
+            .route("/v1/sessions/{id}/stats", get(get_session_stats))
+            .route("/v1/privacy/budget/{user}", get(get_privacy_budget))
+            .route("/v1/privacy/budget/{user}/reset", post(reset_privacy_budget))
             .route("/v1/admin/performance", get(get_performance_stats))
             // Middleware layers
             .layer(from_fn_with_state(
@@ -480,7 +480,7 @@ async fn process_encrypted_completion(
     State(state): State<Arc<ProxyState>>,
     Json(request): Json<ProcessRequest>,
 ) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
-    let timer = state.profiler.start_timer("encrypted_completion");
+    let _timer = state.profiler.start_timer("encrypted_completion");
     
     // Validate request parameters
     if request.provider.is_empty() || request.model.is_empty() {
@@ -515,7 +515,7 @@ async fn process_encrypted_completion(
     };
 
     // Get the LLM provider with validation
-    let provider = state
+    let _provider = state
         .llm_providers
         .get(&request.provider)
         .ok_or_else(|| {
@@ -801,7 +801,7 @@ async fn stream_encrypted_completion(
     // For now, return a simulated streaming response
     // In production, this would use Server-Sent Events or WebSockets
     
-    let ciphertext = state
+    let _ciphertext = state
         .ciphertext_cache
         .read()
         .await
