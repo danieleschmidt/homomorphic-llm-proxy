@@ -874,7 +874,7 @@ mod tests {
         let plaintext = "Hello, world!";
 
         // Test encryption
-        let _ciphertext = pool.encrypt_balanced(client_id, plaintext).await.unwrap();
+        let ciphertext = pool.encrypt_balanced(client_id, plaintext).await.unwrap();
         assert!(!ciphertext.data.is_empty());
 
         // Test decryption
@@ -890,7 +890,7 @@ mod tests {
     async fn test_ciphertext_cache() {
         let cache = CiphertextCache::new(2, Duration::from_secs(1));
         let id = Uuid::new_v4();
-        let _ciphertext = Ciphertext {
+        let ciphertext = Ciphertext {
             id,
             data: vec![1, 2, 3, 4],
             params: FheParams::default(),

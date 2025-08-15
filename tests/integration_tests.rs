@@ -7,7 +7,8 @@ use homomorphic_llm_proxy::security::{
     AdaptiveRateLimiter, ApiKeyManager, InputValidator, Permission,
 };
 use homomorphic_llm_proxy::{Config, Error};
-use secrecy::SecretString;
+// Temporarily remove secrecy dependency
+// use secrecy::SecretString;
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
@@ -94,7 +95,7 @@ fn test_input_validation() {
 /// Test API key management system
 #[tokio::test]
 async fn test_api_key_management() {
-    let master_secret = SecretString::new("test-master-secret-key-12345".to_string().into());
+    let master_secret = "test-master-secret-key-12345".to_string();
     let mut manager = ApiKeyManager::new(master_secret);
 
     // Generate API key
@@ -375,7 +376,7 @@ async fn test_full_workflow_integration() {
     let (client_id, _server_id) = fhe_engine.generate_keys().expect("Failed to generate keys");
 
     // Initialize security components
-    let master_secret = SecretString::new("integration-test-secret-key".to_string().into());
+    let master_secret = "integration-test-secret-key".to_string();
     let mut api_manager = ApiKeyManager::new(master_secret);
     let api_key = api_manager.generate_api_key(
         "integration-test-user".to_string(),

@@ -64,9 +64,18 @@ chrono = { version = "0.4", features = ["serde"] }
 # Async collections
 dashmap = "6.1"
 
+# Additional dependencies for robustness
+async-trait = "0.1"
+regex = "1.11"
+fastrand = "2.1"
+
 # Optional GPU acceleration
 cudarc = { version = "0.17", optional = true }
 criterion = { version = "0.7", features = ["html_reports"], optional = true }
+
+[dev-dependencies.criterion]
+version = "0.7"
+features = ["html_reports"]
 
 # FHE libraries (using available alternatives)
 # Note: concrete and tfhe with these versions are not available, using simulated FHE

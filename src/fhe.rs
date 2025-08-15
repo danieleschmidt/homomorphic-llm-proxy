@@ -326,6 +326,20 @@ impl FheEngine {
         &self.params
     }
 
+    /// Validate engine state for health checks
+    pub fn validate_state(&self) -> Result<()> {
+        if self.client_keys.is_empty() && self.server_keys.is_empty() {
+            return Err(Error::Configuration("No keys generated".to_string()));
+        }
+        
+        // Check if parameters are valid
+        if self.params.poly_modulus_degree == 0 {
+            return Err(Error::Configuration("Invalid FHE parameters".to_string()));
+        }
+        
+        Ok(())
+    }
+
     /// Estimate computation cost for operation
     pub fn estimate_cost(&self, operation: &str, input_size: usize) -> Result<u64> {
         let base_cost = match operation {

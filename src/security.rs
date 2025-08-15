@@ -3,7 +3,8 @@
 use crate::error::{Error, Result};
 use base64::prelude::*;
 use ring::digest;
-use secrecy::{ExposeSecret, SecretString};
+// Temporarily commenting out secrecy dependency - will implement later
+// use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -22,7 +23,7 @@ pub struct SecurityMetrics {
 #[derive(Debug)]
 pub struct ApiKeyManager {
     keys: HashMap<String, ApiKeyInfo>,
-    master_secret: SecretString,
+    master_secret: String, // Temporarily using String instead of SecretString
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +47,7 @@ pub enum Permission {
 }
 
 impl ApiKeyManager {
-    pub fn new(master_secret: SecretString) -> Self {
+    pub fn new(master_secret: String) -> Self {
         Self {
             keys: HashMap::new(),
             master_secret,
@@ -132,7 +133,7 @@ impl ApiKeyManager {
 
     fn hash_with_secret(&self, data: &str) -> Vec<u8> {
         let mut context = digest::Context::new(&digest::SHA256);
-        context.update(self.master_secret.expose_secret().as_bytes());
+        context.update(self.master_secret.as_bytes());
         context.update(data.as_bytes());
         context.finish().as_ref().to_vec()
     }
@@ -617,7 +618,7 @@ mod tests {
 
     #[test]
     fn test_api_key_generation() {
-        let master_secret = SecretString::new("test-secret-key".to_string().into());
+        let master_secret = "test-secret-key".to_string();
         let mut manager = ApiKeyManager::new(master_secret);
 
         let permissions = vec![Permission::Encrypt, Permission::Decrypt];

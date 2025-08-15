@@ -43,6 +43,10 @@ pub enum Error {
     /// Validation errors
     #[error("Validation error: {0}")]
     Validation(String),
+    
+    /// Configuration error (alias for compatibility)
+    #[error("Configuration error: {0}")]
+    Configuration(String),
 
     /// Rate limiting errors
     #[error("Rate limit exceeded: {0}")]
@@ -103,6 +107,7 @@ impl Error {
             Error::Concurrency(_) => ErrorSeverity::Medium,
             Error::DataCorruption(_) => ErrorSeverity::Critical,
             Error::Cryptographic(_) => ErrorSeverity::Critical,
+            Error::Configuration(_) => ErrorSeverity::Critical,
         }
     }
 
@@ -123,6 +128,7 @@ impl Error {
             Error::ResourceExhaustion(_) => "resources",
             Error::Concurrency(_) => "concurrency",
             Error::DataCorruption(_) => "data_integrity",
+            Error::Configuration(_) => "configuration",
         }
     }
 
