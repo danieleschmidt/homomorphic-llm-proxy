@@ -10,6 +10,9 @@ pub mod monitoring;
 pub mod proxy;
 pub mod scaling;
 pub mod security;
+pub mod validation;
+pub mod health;
+pub mod performance;
 
 pub use config::Config;
 pub use error::{Error, Result};
