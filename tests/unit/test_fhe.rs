@@ -1,94 +1,130 @@
 //! Unit tests for FHE module
 
-use homomorphic_llm_proxy::fhe::FheEngine;
+use homomorphic_llm_proxy::fhe::{FheEngine, FheParams};
+use uuid::Uuid;
 
 #[test]
 fn test_fhe_engine_creation() {
-    // Note: This will fail until FHE implementation is complete
-    // For now, we test that the error is properly returned
-    let result = FheEngine::new();
+    let params = FheParams::default();
+    let result = FheEngine::new(params);
     
-    // Currently returns error since not implemented
-    assert!(result.is_err());
+    assert!(result.is_ok(), "FHE engine creation should succeed");
 }
 
 #[test] 
 fn test_fhe_default_creation() {
-    // Test that default implementation returns a valid engine
-    // This will panic until implementation is complete, but shows test structure
-    let _engine = FheEngine::default();
+    let engine = FheEngine::default();
+    let stats = engine.get_encryption_stats();
+    
+    assert_eq!(stats.security_level, 128);
+    assert_eq!(stats.poly_modulus_degree, 16384);
 }
 
 #[cfg(test)]
 mod fhe_operations_tests {
     use super::*;
     
-    fn setup_test_engine() -> FheEngine {
-        // TODO: Mock FHE engine for testing
-        FheEngine::default()
+    fn setup_test_engine() -> (FheEngine, Uuid) {
+        let params = FheParams::default();
+        let mut engine = FheEngine::new(params).expect("Failed to create engine");
+        let (client_id, _) = engine.generate_keys().expect("Failed to generate keys");
+        (engine, client_id)
     }
     
     #[test]
-    #[should_panic] // Remove when implementation is complete
     fn test_encrypt_decrypt_roundtrip() {
-        let engine = setup_test_engine();
-        let plaintext = b"Hello, FHE World!";
+        let (engine, client_id) = setup_test_engine();
+        let plaintext = "Hello, FHE World!";
         
-        let ciphertext = engine.encrypt(plaintext).unwrap();
-        let decrypted = engine.decrypt(&ciphertext).unwrap();
+        let ciphertext = engine.encrypt_text(client_id, plaintext).unwrap();
+        let decrypted = engine.decrypt_text_safe(client_id, &ciphertext).unwrap();
         
-        assert_eq!(plaintext.to_vec(), decrypted);
+        assert_eq!(plaintext, decrypted);
     }
     
     #[test]
-    #[should_panic] // Remove when implementation is complete  
-    fn test_homomorphic_addition() {
-        let engine = setup_test_engine();
+    fn test_ciphertext_validation() {
+        let (engine, client_id) = setup_test_engine();
+        let plaintext = "Test validation";
         
-        let a = engine.encrypt(&[5]).unwrap();
-        let b = engine.encrypt(&[3]).unwrap();
+        let ciphertext = engine.encrypt_text(client_id, plaintext).unwrap();
+        let is_valid = engine.validate_ciphertext(&ciphertext).unwrap();
         
-        let result_encrypted = engine.add(&a, &b).unwrap();
-        let result_decrypted = engine.decrypt(&result_encrypted).unwrap();
-        
-        // Should equal 8 (5 + 3)
-        assert_eq!(result_decrypted, vec![8]);
-    }
-    
-    #[test]  
-    #[should_panic] // Remove when implementation is complete
-    fn test_homomorphic_multiplication() {
-        let engine = setup_test_engine();
-        
-        let a = engine.encrypt(&[4]).unwrap();
-        let b = engine.encrypt(&[7]).unwrap();
-        
-        let result_encrypted = engine.multiply(&a, &b).unwrap();
-        let result_decrypted = engine.decrypt(&result_encrypted).unwrap();
-        
-        // Should equal 28 (4 * 7) 
-        assert_eq!(result_decrypted, vec![28]);
+        assert!(is_valid, "Valid ciphertext should pass validation");
     }
     
     #[test]
-    #[should_panic] // Remove when implementation is complete
+    fn test_concatenate_ciphertexts() {
+        let (engine, client_id) = setup_test_engine();
+        let text_a = "Hello ";
+        let text_b = "World!";
+        
+        let ciphertext_a = engine.encrypt_text(client_id, text_a).unwrap();
+        let ciphertext_b = engine.encrypt_text(client_id, text_b).unwrap();
+        
+        let concatenated = engine.concatenate_encrypted(&ciphertext_a, &ciphertext_b).unwrap();
+        
+        assert!(!concatenated.data.is_empty());
+        assert!(concatenated.noise_budget.is_some());
+    }
+    
+    #[test]
     fn test_encrypt_empty_data() {
-        let engine = setup_test_engine();
-        let result = engine.encrypt(&[]);
+        let (engine, client_id) = setup_test_engine();
+        let result = engine.encrypt_text(client_id, "");
         
-        // Should handle empty data gracefully
-        assert!(result.is_ok());
+        assert!(result.is_err(), "Empty plaintext should return error");
     }
     
     #[test]
-    #[should_panic] // Remove when implementation is complete  
-    fn test_decrypt_invalid_ciphertext() {
-        let engine = setup_test_engine();
-        let invalid_ciphertext = vec![0xFF; 32]; // Invalid ciphertext
+    fn test_encrypt_invalid_client() {
+        let (engine, _) = setup_test_engine();
+        let invalid_client_id = Uuid::new_v4();
         
-        let result = engine.decrypt(&invalid_ciphertext);
+        let result = engine.encrypt_text(invalid_client_id, "test");
         
-        // Should return error for invalid ciphertext
-        assert!(result.is_err());
+        assert!(result.is_err(), "Invalid client ID should return error");
+    }
+    
+    #[test]
+    fn test_key_rotation() {
+        let (mut engine, client_id) = setup_test_engine();
+        
+        let new_server_id = engine.rotate_keys(client_id).unwrap();
+        
+        assert_ne!(new_server_id, Uuid::nil());
+    }
+    
+    #[test]
+    fn test_encryption_statistics() {
+        let (engine, _) = setup_test_engine();
+        let stats = engine.get_encryption_stats();
+        
+        assert!(stats.total_client_keys > 0);
+        assert!(stats.total_server_keys > 0);
+        assert_eq!(stats.security_level, 128);
+    }
+    
+    #[test]
+    fn test_cost_estimation() {
+        let (engine, _) = setup_test_engine();
+        
+        let encrypt_cost = engine.estimate_cost("encrypt", 100).unwrap();
+        let decrypt_cost = engine.estimate_cost("decrypt", 100).unwrap();
+        
+        assert!(encrypt_cost > 0);
+        assert!(decrypt_cost > 0);
+        assert!(encrypt_cost > decrypt_cost); // Encryption typically more expensive
+    }
+    
+    #[test]
+    fn test_noise_budget_tracking() {
+        let (engine, client_id) = setup_test_engine();
+        let plaintext = "Test noise budget";
+        
+        let ciphertext = engine.encrypt_text(client_id, plaintext).unwrap();
+        
+        assert!(ciphertext.noise_budget.is_some());
+        assert!(ciphertext.noise_budget.unwrap() > 0);
     }
 }
