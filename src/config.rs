@@ -14,6 +14,8 @@ pub struct Config {
     pub privacy: PrivacyConfig,
     pub gpu: GpuConfig,
     pub monitoring: MonitoringConfig,
+    pub scaling: ScalingConfig,
+    pub performance: PerformanceConfig,
 }
 
 /// Server configuration
@@ -85,6 +87,34 @@ pub struct MonitoringConfig {
     pub log_level: String,
 }
 
+/// Scaling configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScalingConfig {
+    pub auto_scaling_enabled: bool,
+    pub min_instances: u32,
+    pub max_instances: u32,
+    pub target_cpu_utilization: f64,
+    pub scale_up_threshold: f64,
+    pub scale_down_threshold: f64,
+    pub cooldown_period_seconds: u64,
+    pub connection_pool_size: usize,
+    pub max_concurrent_requests: u32,
+}
+
+/// Performance optimization configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    pub cache_enabled: bool,
+    pub cache_size_mb: u64,
+    pub cache_ttl_seconds: u64,
+    pub batch_processing_enabled: bool,
+    pub batch_size: usize,
+    pub batch_timeout_ms: u64,
+    pub compression_enabled: bool,
+    pub prefetch_enabled: bool,
+    pub async_processing: bool,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -129,6 +159,28 @@ impl Default for Config {
                 metrics_port: 9090,
                 trace_sampling_rate: 0.1,
                 log_level: "info".to_string(),
+            },
+            scaling: ScalingConfig {
+                auto_scaling_enabled: true,
+                min_instances: 1,
+                max_instances: 10,
+                target_cpu_utilization: 70.0,
+                scale_up_threshold: 80.0,
+                scale_down_threshold: 30.0,
+                cooldown_period_seconds: 300,
+                connection_pool_size: 4,
+                max_concurrent_requests: 1000,
+            },
+            performance: PerformanceConfig {
+                cache_enabled: true,
+                cache_size_mb: 512,
+                cache_ttl_seconds: 3600,
+                batch_processing_enabled: true,
+                batch_size: 32,
+                batch_timeout_ms: 100,
+                compression_enabled: true,
+                prefetch_enabled: true,
+                async_processing: true,
             },
         }
     }

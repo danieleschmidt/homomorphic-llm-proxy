@@ -1,0 +1,100 @@
+# Multi-region production Dockerfile for FHE LLM Proxy
+# Optimized for global deployment with regional compliance
+
+FROM nvidia/cuda:12.1-devel-ubuntu22.04 as builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    tzdata \
+    locales \
+    && rm -rf /var/lib/apt/lists/*
+
+# Generate locales for international support
+RUN locale-gen en_US.UTF-8 es_ES.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 zh_CN.UTF-8 ja_JP.UTF-8
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Set working directory
+WORKDIR /app
+
+# Copy source code
+COPY . .
+
+# Build the application with optimizations
+RUN cargo build --release --features="gpu-acceleration,metrics,compliance"
+
+# Runtime image
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tzdata \
+    locales \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Generate locales
+RUN locale-gen en_US.UTF-8 es_ES.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 zh_CN.UTF-8 ja_JP.UTF-8
+
+# Set environment variables for localization
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Create app user for security
+RUN groupadd -r fhe && useradd -r -g fhe fhe
+
+# Create necessary directories
+RUN mkdir -p /app/config /app/logs /app/locales /app/certs /var/lib/fhe-proxy && \
+    chown -R fhe:fhe /app /var/lib/fhe-proxy
+
+# Copy binary and configuration
+COPY --from=builder /app/target/release/fhe-proxy /app/
+COPY --from=builder /app/config.toml /app/config/
+COPY --from=builder /app/locales/ /app/locales/
+
+# Copy health check script
+COPY --from=builder /app/scripts/health-check.sh /app/
+RUN chmod +x /app/health-check.sh
+
+# Switch to app user
+USER fhe
+
+WORKDIR /app
+
+# Expose ports
+EXPOSE 8080 9090
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ./health-check.sh
+
+# Environment variables for multi-region deployment
+ENV FHE_HOST=0.0.0.0
+ENV FHE_PORT=8080
+ENV FHE_METRICS_PORT=9090
+ENV FHE_LOG_LEVEL=info
+ENV FHE_CONFIG_PATH=/app/config/config.toml
+ENV FHE_LOCALE_PATH=/app/locales
+ENV FHE_REGION=${REGION:-us-east-1}
+ENV FHE_COMPLIANCE_MODE=${COMPLIANCE_MODE:-gdpr}
+
+# Default compliance configurations by region
+ENV GDPR_ENABLED=true
+ENV CCPA_ENABLED=false
+ENV HIPAA_ENABLED=false
+
+# Performance tuning
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+
+# Run the application
+CMD ["./fhe-proxy", "--config", "/app/config/config.toml"]

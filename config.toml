@@ -103,17 +103,29 @@ idle_timeout_seconds = 300
 
 # Auto-scaling
 auto_scaling_enabled = true
-target_cpu_percent = 70.0
-target_queue_length = 50
+min_instances = 2
+max_instances = 10
+target_cpu_utilization = 70.0
 scale_up_threshold = 80.0
 scale_down_threshold = 40.0
-min_replicas = 2
-max_replicas = 10
 cooldown_period_seconds = 300
+connection_pool_size = 4
+max_concurrent_requests = 1000
+
+# Performance
+[performance]
+cache_enabled = true
+cache_size_mb = 512
+cache_ttl_seconds = 3600
+batch_processing_enabled = true
+batch_size = 32
+batch_timeout_ms = 100
+compression_enabled = true
+prefetch_enabled = true
+async_processing = true
 
 # Caching
 ciphertext_cache_size = 1000
-cache_ttl_seconds = 3600
 cache_cleanup_interval_seconds = 300
 enable_redis_cache = false
 redis_url = "redis://localhost:6379"

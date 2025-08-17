@@ -133,26 +133,42 @@ impl FheEngine {
         let sanitized_text = plaintext
             .chars()
             .filter(|c| {
-                c.is_ascii() && 
-                (!c.is_control() || c.is_whitespace()) && 
-                *c != '\0' && // Null byte protection
-                !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F') // Control chars
+                c.is_ascii()
+                && (!c.is_control() || c.is_whitespace())
+                && *c != '\0' // Null byte protection
+                && !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F')
+                // Control chars
             })
             .collect::<String>();
 
         if sanitized_text != plaintext {
-            log::warn!("Input sanitized during encryption for client {} (removed {} characters)", 
-                client_id, plaintext.len() - sanitized_text.len());
+            log::warn!(
+                "Input sanitized during encryption for client {} (removed {} characters)",
+                client_id,
+                plaintext.len() - sanitized_text.len()
+            );
         }
 
         // Additional security check for potential injection patterns
-        let suspicious_patterns = ["<script", "javascript:", "data:", "vbscript:", "onload=", "onerror="];
+        let suspicious_patterns = [
+            "<script",
+            "javascript:",
+            "data:",
+            "vbscript:",
+            "onload=",
+            "onerror=",
+        ];
         let lowercase_text = sanitized_text.to_lowercase();
         for pattern in &suspicious_patterns {
             if lowercase_text.contains(pattern) {
-                log::warn!("Potentially malicious pattern detected in encryption input for client {}: {}", 
-                    client_id, pattern);
-                return Err(Error::Validation("Input contains potentially malicious content".to_string()));
+                log::warn!(
+                    "Potentially malicious pattern detected in encryption input for client {}: {}",
+                    client_id,
+                    pattern
+                );
+                return Err(Error::Validation(
+                    "Input contains potentially malicious content".to_string(),
+                ));
             }
         }
 
@@ -234,15 +250,20 @@ impl FheEngine {
 
         // Check for potential overflow in concatenated size
         let total_size = a.data.len().saturating_add(b.data.len());
-        if total_size > 1_000_000 { // 1MB limit
-            return Err(Error::Fhe("Concatenated ciphertext would exceed size limit".to_string()));
+        if total_size > 1_000_000 {
+            // 1MB limit
+            return Err(Error::Fhe(
+                "Concatenated ciphertext would exceed size limit".to_string(),
+            ));
         }
 
         // Validate noise budgets before operation
         match (a.noise_budget, b.noise_budget) {
             (Some(a_budget), Some(b_budget)) => {
                 if a_budget < 10 || b_budget < 10 {
-                    return Err(Error::Fhe("Insufficient noise budget for concatenation".to_string()));
+                    return Err(Error::Fhe(
+                        "Insufficient noise budget for concatenation".to_string(),
+                    ));
                 }
             }
             _ => {
@@ -252,13 +273,13 @@ impl FheEngine {
 
         // Perform concatenation with metadata preservation
         let mut concatenated_data = Vec::with_capacity(total_size);
-        
+
         // Add operation header for audit trail
         let op_header = format!("CONCAT|{}|{}", a.id, b.id);
         let header_bytes = op_header.as_bytes();
         concatenated_data.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
         concatenated_data.extend_from_slice(header_bytes);
-        
+
         // Concatenate actual ciphertext data
         concatenated_data.extend_from_slice(&a.data);
         concatenated_data.extend_from_slice(&b.data);
@@ -272,8 +293,12 @@ impl FheEngine {
             _ => None,
         };
 
-        log::info!("Successfully concatenated ciphertexts {} + {} -> new size: {} bytes", 
-            a.id, b.id, concatenated_data.len());
+        log::info!(
+            "Successfully concatenated ciphertexts {} + {} -> new size: {} bytes",
+            a.id,
+            b.id,
+            concatenated_data.len()
+        );
 
         Ok(Ciphertext {
             id: Uuid::new_v4(),
@@ -331,12 +356,12 @@ impl FheEngine {
         if self.client_keys.is_empty() && self.server_keys.is_empty() {
             return Err(Error::Configuration("No keys generated".to_string()));
         }
-        
+
         // Check if parameters are valid
         if self.params.poly_modulus_degree == 0 {
             return Err(Error::Configuration("Invalid FHE parameters".to_string()));
         }
-        
+
         Ok(())
     }
 

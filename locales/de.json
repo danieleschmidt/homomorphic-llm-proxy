@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "FHE LLM Proxy",
+    "description": "Datenschutzwahrende KI-Inferenz mit homomorpher Verschlüsselung"
+  },
+  "errors": {
+    "validation": "Eingabevalidierung fehlgeschlagen",
+    "encryption": "Verschlüsselungsvorgang fehlgeschlagen",
+    "auth": "Authentifizierung erforderlich",
+    "rate_limit": "Ratenlimit überschritten",
+    "privacy_budget": "Datenschutzbudget erschöpft",
+    "config": "Konfigurationsfehler",
+    "network": "Netzwerkvorgang fehlgeschlagen",
+    "internal": "Interner Serverfehler",
+    "security": "Sicherheitsverletzung erkannt",
+    "resource_exhaustion": "Systemressourcen erschöpft",
+    "concurrency": "Parallelitätslimit überschritten",
+    "data_corruption": "Datenintegritätsverletzung",
+    "cryptographic": "Kryptographischer Vorgang fehlgeschlagen"
+  },
+  "messages": {
+    "startup": "FHE LLM Proxy startet...",
+    "shutdown": "Ordnungsgemäßes Herunterfahren...",
+    "key_rotation": "Rotieren der Verschlüsselungsschlüssel...",
+    "cache_eviction": "Entfernen von Cache-Einträgen...",
+    "health_check": "Durchführung von Gesundheitsprüfungen...",
+    "privacy_budget_reset": "Datenschutzbudget für Benutzer zurückgesetzt",
+    "encryption_complete": "Text erfolgreich verschlüsselt",
+    "decryption_complete": "Text erfolgreich entschlüsselt",
+    "validation_passed": "Eingabevalidierung bestanden",
+    "validation_failed": "Eingabevalidierung fehlgeschlagen",
+    "metrics_recorded": "Leistungsmetriken aufgezeichnet"
+  },
+  "api": {
+    "health_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "encrypt_endpoint": "/v1/encrypt",
+    "decrypt_endpoint": "/v1/decrypt",
+    "process_endpoint": "/v1/process",
+    "keys_endpoint": "/v1/keys",
+    "params_endpoint": "/v1/params"
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": "DSGVO-Konformität aktiviert",
+      "data_subject_rights": "Betroffenenrechte verfügbar",
+      "consent_required": "Benutzereinwilligung für Verarbeitung erforderlich",
+      "retention_policy": "Datenaufbewahrungsrichtlinie durchgesetzt"
+    },
+    "ccpa": {
+      "enabled": "CCPA-Konformität aktiviert",
+      "privacy_rights": "Datenschutzrechte für Kalifornien-Bewohner verfügbar",
+      "opt_out": "Opt-out-Mechanismen verfügbar"
+    },
+    "hipaa": {
+      "enabled": "HIPAA-Konformität aktiviert",
+      "phi_protection": "PHI-Schutzmechanismen aktiv",
+      "audit_logging": "Umfassende Audit-Protokollierung aktiviert"
+    }
+  }
+}

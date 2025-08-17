@@ -4,41 +4,57 @@ services:
   fhe-proxy:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.multi-region
       args:
         BUILDKIT_INLINE_CACHE: 1
-    image: terragonlabs/homomorphic-llm-proxy:latest
+    image: fhe-llm-proxy:production
     container_name: fhe-proxy-prod
     restart: unless-stopped
     ports:
       - "8080:8080"  # Main API
       - "9090:9090"  # Metrics
     environment:
-      # Server Configuration
+      # Basic configuration
       - FHE_HOST=0.0.0.0
       - FHE_PORT=8080
-      - RUST_LOG=info
+      - FHE_METRICS_PORT=9090
+      - FHE_LOG_LEVEL=info
+      - FHE_CONFIG_PATH=/app/config/config.toml
+      - FHE_LOCALE_PATH=/app/locales
+      
+      # Regional and compliance settings
+      - FHE_REGION=${REGION:-us-east-1}
+      - FHE_COMPLIANCE_MODE=${COMPLIANCE_MODE:-gdpr}
+      - GDPR_ENABLED=true
+      - CCPA_ENABLED=true
+      - HIPAA_ENABLED=false
       
       # API Keys (set these in production)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       
-      # FHE Configuration
-      - FHE_GPU_ENABLED=true
-      - FHE_GPU_DEVICE_ID=0
-      - FHE_POLY_MODULUS_DEGREE=16384
-      - FHE_SECURITY_LEVEL=128
+      # Performance optimization
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+      - RUST_LOG_STYLE=always
       
-      # Performance Settings
-      - FHE_METRICS_ENABLED=true
+      # Security
+      - FHE_API_KEY_HEADER=X-API-Key
+      - FHE_REQUIRE_HTTPS=true
+      
+      # Database connection
+      - DATABASE_URL=${DATABASE_URL:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       
     volumes:
-      - ./config.toml:/app/config.toml:ro
-      - ./logs:/app/logs
-      - fhe_keys:/app/keys
+      - ./config.toml:/app/config/config.toml:ro
+      - ./locales:/app/locales:ro
+      - ./certs:/app/certs:ro
+      - fhe_logs:/app/logs
+      - fhe_data:/var/lib/fhe-proxy
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "./health-check.sh"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -125,7 +141,9 @@ services:
       - fhe-network
 
 volumes:
-  fhe_keys:
+  fhe_logs:
+    driver: local
+  fhe_data:
     driver: local
   redis_data:
     driver: local

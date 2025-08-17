@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "FHE LLM Proxy",
+    "description": "Privacy-preserving AI inference with homomorphic encryption"
+  },
+  "errors": {
+    "validation": "Input validation failed",
+    "encryption": "Encryption operation failed",
+    "auth": "Authentication required",
+    "rate_limit": "Rate limit exceeded",
+    "privacy_budget": "Privacy budget exhausted",
+    "config": "Configuration error",
+    "network": "Network operation failed",
+    "internal": "Internal server error",
+    "security": "Security violation detected",
+    "resource_exhaustion": "System resources exhausted",
+    "concurrency": "Concurrency limit exceeded",
+    "data_corruption": "Data integrity violation",
+    "cryptographic": "Cryptographic operation failed"
+  },
+  "messages": {
+    "startup": "FHE LLM Proxy starting up...",
+    "shutdown": "Gracefully shutting down...",
+    "key_rotation": "Rotating encryption keys...",
+    "cache_eviction": "Evicting cache entries...",
+    "health_check": "Running health checks...",
+    "privacy_budget_reset": "Privacy budget reset for user",
+    "encryption_complete": "Text encrypted successfully",
+    "decryption_complete": "Text decrypted successfully",
+    "validation_passed": "Input validation passed",
+    "validation_failed": "Input validation failed",
+    "metrics_recorded": "Performance metrics recorded"
+  },
+  "api": {
+    "health_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "encrypt_endpoint": "/v1/encrypt",
+    "decrypt_endpoint": "/v1/decrypt",
+    "process_endpoint": "/v1/process",
+    "keys_endpoint": "/v1/keys",
+    "params_endpoint": "/v1/params"
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": "GDPR compliance enabled",
+      "data_subject_rights": "Data subject rights available",
+      "consent_required": "User consent required for processing",
+      "retention_policy": "Data retention policy enforced"
+    },
+    "ccpa": {
+      "enabled": "CCPA compliance enabled",
+      "privacy_rights": "Privacy rights available to California residents",
+      "opt_out": "Opt-out mechanisms available"
+    },
+    "hipaa": {
+      "enabled": "HIPAA compliance enabled",
+      "phi_protection": "PHI protection mechanisms active",
+      "audit_logging": "Comprehensive audit logging enabled"
+    }
+  }
+}

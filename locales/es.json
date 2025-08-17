@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "Proxy FHE LLM",
+    "description": "Inferencia de IA que preserva la privacidad con cifrado homomórfico"
+  },
+  "errors": {
+    "validation": "Falló la validación de entrada",
+    "encryption": "Falló la operación de cifrado",
+    "auth": "Autenticación requerida",
+    "rate_limit": "Límite de velocidad excedido",
+    "privacy_budget": "Presupuesto de privacidad agotado",
+    "config": "Error de configuración",
+    "network": "Falló la operación de red",
+    "internal": "Error interno del servidor",
+    "security": "Violación de seguridad detectada",
+    "resource_exhaustion": "Recursos del sistema agotados",
+    "concurrency": "Límite de concurrencia excedido",
+    "data_corruption": "Violación de integridad de datos",
+    "cryptographic": "Falló la operación criptográfica"
+  },
+  "messages": {
+    "startup": "Iniciando Proxy FHE LLM...",
+    "shutdown": "Cerrando de forma elegante...",
+    "key_rotation": "Rotando claves de cifrado...",
+    "cache_eviction": "Eliminando entradas de caché...",
+    "health_check": "Ejecutando verificaciones de salud...",
+    "privacy_budget_reset": "Presupuesto de privacidad restablecido para el usuario",
+    "encryption_complete": "Texto cifrado exitosamente",
+    "decryption_complete": "Texto descifrado exitosamente",
+    "validation_passed": "Validación de entrada aprobada",
+    "validation_failed": "Validación de entrada falló",
+    "metrics_recorded": "Métricas de rendimiento registradas"
+  },
+  "api": {
+    "health_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "encrypt_endpoint": "/v1/encrypt",
+    "decrypt_endpoint": "/v1/decrypt",
+    "process_endpoint": "/v1/process",
+    "keys_endpoint": "/v1/keys",
+    "params_endpoint": "/v1/params"
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": "Cumplimiento GDPR habilitado",
+      "data_subject_rights": "Derechos del sujeto de datos disponibles",
+      "consent_required": "Consentimiento del usuario requerido para procesamiento",
+      "retention_policy": "Política de retención de datos aplicada"
+    },
+    "ccpa": {
+      "enabled": "Cumplimiento CCPA habilitado",
+      "privacy_rights": "Derechos de privacidad disponibles para residentes de California",
+      "opt_out": "Mecanismos de exclusión disponibles"
+    },
+    "hipaa": {
+      "enabled": "Cumplimiento HIPAA habilitado",
+      "phi_protection": "Mecanismos de protección PHI activos",
+      "audit_logging": "Registro de auditoría integral habilitado"
+    }
+  }
+}
