@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "Proxy FHE LLM",
+    "description": "Inférence IA préservant la confidentialité avec chiffrement homomorphe"
+  },
+  "errors": {
+    "validation": "Échec de la validation d'entrée",
+    "encryption": "Échec de l'opération de chiffrement",
+    "auth": "Authentification requise",
+    "rate_limit": "Limite de débit dépassée",
+    "privacy_budget": "Budget de confidentialité épuisé",
+    "config": "Erreur de configuration",
+    "network": "Échec de l'opération réseau",
+    "internal": "Erreur interne du serveur",
+    "security": "Violation de sécurité détectée",
+    "resource_exhaustion": "Ressources système épuisées",
+    "concurrency": "Limite de concurrence dépassée",
+    "data_corruption": "Violation de l'intégrité des données",
+    "cryptographic": "Échec de l'opération cryptographique"
+  },
+  "messages": {
+    "startup": "Démarrage du Proxy FHE LLM...",
+    "shutdown": "Arrêt en douceur...",
+    "key_rotation": "Rotation des clés de chiffrement...",
+    "cache_eviction": "Éviction des entrées de cache...",
+    "health_check": "Exécution des vérifications de santé...",
+    "privacy_budget_reset": "Budget de confidentialité réinitialisé pour l'utilisateur",
+    "encryption_complete": "Texte chiffré avec succès",
+    "decryption_complete": "Texte déchiffré avec succès",
+    "validation_passed": "Validation d'entrée réussie",
+    "validation_failed": "Validation d'entrée échouée",
+    "metrics_recorded": "Métriques de performance enregistrées"
+  },
+  "api": {
+    "health_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "encrypt_endpoint": "/v1/encrypt",
+    "decrypt_endpoint": "/v1/decrypt",
+    "process_endpoint": "/v1/process",
+    "keys_endpoint": "/v1/keys",
+    "params_endpoint": "/v1/params"
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": "Conformité GDPR activée",
+      "data_subject_rights": "Droits des personnes concernées disponibles",
+      "consent_required": "Consentement de l'utilisateur requis pour le traitement",
+      "retention_policy": "Politique de rétention des données appliquée"
+    },
+    "ccpa": {
+      "enabled": "Conformité CCPA activée",
+      "privacy_rights": "Droits à la vie privée disponibles pour les résidents de Californie",
+      "opt_out": "Mécanismes d'exclusion disponibles"
+    },
+    "hipaa": {
+      "enabled": "Conformité HIPAA activée",
+      "phi_protection": "Mécanismes de protection PHI actifs",
+      "audit_logging": "Journalisation d'audit complète activée"
+    }
+  }
+}

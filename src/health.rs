@@ -291,10 +291,7 @@ impl HealthCheck for FheEngineHealthCheck {
         // Check response time warning threshold
         if response_time > 1000 {
             warning_count += 1;
-            details.insert(
-                "warning".to_string(),
-                "High response time".to_string(),
-            );
+            details.insert("warning".to_string(), "High response time".to_string());
         }
 
         Ok(ComponentHealth {
@@ -468,7 +465,10 @@ impl HealthCheck for ExternalServiceHealthCheck {
         let mut error_count = 0;
 
         details.insert("endpoint".to_string(), self.endpoint.clone());
-        details.insert("timeout_ms".to_string(), self.timeout.as_millis().to_string());
+        details.insert(
+            "timeout_ms".to_string(),
+            self.timeout.as_millis().to_string(),
+        );
 
         // Simulate external service check
         let status = match tokio::time::timeout(self.timeout, self.ping_service()).await {
@@ -528,9 +528,7 @@ mod tests {
 
         // Register a memory health check
         let memory_check = MemoryHealthCheck::new(1024, 80.0);
-        checker
-            .register_check(Box::new(memory_check))
-            .await;
+        checker.register_check(Box::new(memory_check)).await;
 
         // Run health checks
         let report = checker.run_health_checks().await.unwrap();
@@ -542,7 +540,7 @@ mod tests {
     async fn test_memory_health_check() {
         let check = MemoryHealthCheck::new(1024, 80.0);
         let health = check.check().await.unwrap();
-        
+
         assert_eq!(health.name, "memory");
         assert!(!health.details.is_empty());
     }
@@ -554,7 +552,7 @@ mod tests {
             "https://example.com".to_string(),
             Duration::from_secs(5),
         );
-        
+
         let health = check.check().await.unwrap();
         assert_eq!(health.name, "test_service");
     }

@@ -5,6 +5,8 @@ use crate::error::{Error, Result};
 use crate::fhe::{Ciphertext, FheEngine, FheParams};
 use crate::middleware::{MetricsCollector, PrivacyBudgetTracker, RateLimiter};
 use crate::monitoring::{MonitoringService, PerformanceProfiler, StructuredLogger};
+use crate::scaling::{AutoScaler, BatchProcessor, CiphertextCache, CircuitBreaker, FheConnectionPool};
+use crate::performance::{PerformanceCache, ConnectionPoolShard, CacheConfig, EvictionStrategy};
 use axum::middleware::{from_fn, from_fn_with_state};
 use axum::{
     extract::{Path, State},
@@ -206,6 +208,15 @@ pub struct ProxyState {
     pub privacy_tracker: PrivacyBudgetTracker,
     pub monitoring: MonitoringService,
     pub profiler: PerformanceProfiler,
+    // Scaling components
+    pub fhe_pool: FheConnectionPool,
+    pub auto_scaler: AutoScaler,
+    pub batch_processor: BatchProcessor,
+    pub advanced_cache: CiphertextCache,
+    pub circuit_breaker: CircuitBreaker,
+    // Performance optimization
+    pub performance_cache: PerformanceCache,
+    pub connection_manager: ConnectionPoolShard,
 }
 
 /// Main proxy server
@@ -240,6 +251,63 @@ impl ProxyServer {
             );
         }
 
+        // Initialize scaling components
+        let fhe_params_for_pool = FheParams {
+            poly_modulus_degree: config.encryption.poly_modulus_degree,
+            coeff_modulus_bits: config.encryption.coeff_modulus_bits.clone(),
+            scale_bits: config.encryption.scale_bits,
+            security_level: 128,
+        };
+        
+        let fhe_pool = FheConnectionPool::new(
+            config.scaling.connection_pool_size,
+            config.scaling.max_concurrent_requests as usize,
+            fhe_params_for_pool.clone(),
+        )?;
+        
+        let auto_scaler = AutoScaler::new(
+            config.scaling.target_cpu_utilization,
+            config.scaling.min_instances as usize,
+            config.scaling.max_instances as usize,
+            config.scaling.scale_up_threshold as usize,
+            std::time::Duration::from_secs(config.scaling.cooldown_period_seconds),
+        );
+        
+        let batch_processor = BatchProcessor::new(
+            config.performance.batch_size,
+            std::time::Duration::from_millis(config.performance.batch_timeout_ms),
+        );
+        
+        let advanced_cache = CiphertextCache::new(
+            (config.performance.cache_size_mb * 1024 * 1024) as usize,
+            std::time::Duration::from_secs(config.performance.cache_ttl_seconds),
+        );
+        
+        let circuit_breaker = CircuitBreaker::new(
+            50,
+            30,
+            std::time::Duration::from_secs(60),
+        );
+        
+        let performance_cache = PerformanceCache::new(CacheConfig {
+            l1_max_size: (config.performance.cache_size_mb * 1024 * 1024 / 4) as usize,
+            l2_max_size: (config.performance.cache_size_mb * 1024 * 1024 / 2) as usize,
+            hot_max_size: (config.performance.cache_size_mb * 1024 * 1024 / 4) as usize,
+            default_ttl: std::time::Duration::from_secs(config.performance.cache_ttl_seconds),
+            hot_threshold_accesses: 5,
+            eviction_strategy: EvictionStrategy::Adaptive,
+            compression_enabled: config.performance.compression_enabled,
+            encryption_enabled: true,
+        });
+        
+        let connection_manager = ConnectionPoolShard {
+            id: 0,
+            engines: Vec::new(),
+            current_load: std::sync::atomic::AtomicUsize::new(0),
+            max_load: config.scaling.max_concurrent_requests as usize,
+            health_score: std::sync::atomic::AtomicU64::new(100),
+        };
+
         let state = Arc::new(ProxyState {
             rate_limiter: RateLimiter::new(config.privacy.max_queries_per_user as u64),
             metrics: MetricsCollector::new(),
@@ -249,11 +317,20 @@ impl ProxyServer {
             ),
             monitoring: MonitoringService::new(env!("CARGO_PKG_VERSION").to_string()),
             profiler: PerformanceProfiler::new(),
-            config,
             fhe_engine: Arc::new(RwLock::new(fhe_engine)),
             session_manager: SessionManager::new(),
             llm_providers,
             ciphertext_cache: RwLock::new(HashMap::new()),
+            // Scaling components
+            fhe_pool,
+            auto_scaler,
+            batch_processor,
+            advanced_cache,
+            circuit_breaker,
+            // Performance optimization
+            performance_cache,
+            connection_manager,
+            config,
         });
 
         Ok(Self { state })
@@ -303,7 +380,10 @@ impl ProxyServer {
             // Session and admin endpoints
             .route("/v1/sessions/{id}/stats", get(get_session_stats))
             .route("/v1/privacy/budget/{user}", get(get_privacy_budget))
-            .route("/v1/privacy/budget/{user}/reset", post(reset_privacy_budget))
+            .route(
+                "/v1/privacy/budget/{user}/reset",
+                post(reset_privacy_budget),
+            )
             .route("/v1/admin/performance", get(get_performance_stats))
             // Middleware layers
             .layer(from_fn_with_state(
@@ -481,7 +561,7 @@ async fn process_encrypted_completion(
     Json(request): Json<ProcessRequest>,
 ) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
     let _timer = state.profiler.start_timer("encrypted_completion");
-    
+
     // Validate request parameters
     if request.provider.is_empty() || request.model.is_empty() {
         log::warn!("Invalid request parameters: empty provider or model");
@@ -501,7 +581,8 @@ async fn process_encrypted_completion(
         match cache.get(&request.ciphertext_id) {
             Some(ct) => {
                 // Validate ciphertext age (expire after 1 hour)
-                if ct.data.len() > 10_000_000 { // 10MB limit
+                if ct.data.len() > 10_000_000 {
+                    // 10MB limit
                     log::error!("Ciphertext too large: {} bytes", ct.data.len());
                     return Err(StatusCode::PAYLOAD_TOO_LARGE);
                 }
@@ -515,13 +596,10 @@ async fn process_encrypted_completion(
     };
 
     // Get the LLM provider with validation
-    let _provider = state
-        .llm_providers
-        .get(&request.provider)
-        .ok_or_else(|| {
-            log::error!("Provider not configured: {}", request.provider);
-            StatusCode::BAD_REQUEST
-        })?;
+    let _provider = state.llm_providers.get(&request.provider).ok_or_else(|| {
+        log::error!("Provider not configured: {}", request.provider);
+        StatusCode::BAD_REQUEST
+    })?;
 
     let fhe_engine = state.fhe_engine.read().await;
 
@@ -775,7 +853,7 @@ async fn rotate_client_keys(
     Path(client_id): Path<Uuid>,
 ) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
     let mut fhe_engine = state.fhe_engine.write().await;
-    
+
     match fhe_engine.rotate_keys(client_id) {
         Ok(new_server_id) => {
             log::info!("Successfully rotated keys for client {}", client_id);
@@ -800,7 +878,7 @@ async fn stream_encrypted_completion(
 ) -> std::result::Result<Json<serde_json::Value>, StatusCode> {
     // For now, return a simulated streaming response
     // In production, this would use Server-Sent Events or WebSockets
-    
+
     let _ciphertext = state
         .ciphertext_cache
         .read()
@@ -810,9 +888,12 @@ async fn stream_encrypted_completion(
         .ok_or(StatusCode::NOT_FOUND)?;
 
     let stream_id = Uuid::new_v4();
-    
-    log::info!("Starting encrypted stream {} for ciphertext {}", 
-        stream_id, request.ciphertext_id);
+
+    log::info!(
+        "Starting encrypted stream {} for ciphertext {}",
+        stream_id,
+        request.ciphertext_id
+    );
 
     Ok(Json(serde_json::json!({
         "stream_id": stream_id,
@@ -838,15 +919,11 @@ async fn validate_ciphertext(
         .ok_or(StatusCode::NOT_FOUND)?;
 
     let fhe_engine = state.fhe_engine.read().await;
-    
+
     match fhe_engine.validate_ciphertext(&ciphertext) {
         Ok(is_valid) => {
-            let validation_result = if is_valid {
-                "valid"
-            } else {
-                "invalid"
-            };
-            
+            let validation_result = if is_valid { "valid" } else { "invalid" };
+
             Ok(Json(serde_json::json!({
                 "ciphertext_id": ciphertext_id,
                 "status": validation_result,
@@ -872,7 +949,7 @@ async fn concatenate_ciphertexts(
         .as_str()
         .and_then(|s| s.parse().ok())
         .ok_or(StatusCode::BAD_REQUEST)?;
-    
+
     let ciphertext_b_id: Uuid = request["ciphertext_b"]
         .as_str()
         .and_then(|s| s.parse().ok())
@@ -880,12 +957,12 @@ async fn concatenate_ciphertexts(
 
     let (ciphertext_a, ciphertext_b) = {
         let cache = state.ciphertext_cache.read().await;
-        
+
         let ciphertext_a = cache
             .get(&ciphertext_a_id)
             .cloned()
             .ok_or(StatusCode::NOT_FOUND)?;
-        
+
         let ciphertext_b = cache
             .get(&ciphertext_b_id)
             .cloned()
@@ -895,7 +972,7 @@ async fn concatenate_ciphertexts(
     };
 
     let fhe_engine = state.fhe_engine.read().await;
-    
+
     match fhe_engine.concatenate_encrypted(&ciphertext_a, &ciphertext_b) {
         Ok(result_ciphertext) => {
             // Cache the result

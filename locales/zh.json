@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "FHE LLM 代理",
+    "description": "使用同态加密的隐私保护AI推理"
+  },
+  "errors": {
+    "validation": "输入验证失败",
+    "encryption": "加密操作失败",
+    "auth": "需要身份验证",
+    "rate_limit": "超出速率限制",
+    "privacy_budget": "隐私预算耗尽",
+    "config": "配置错误",
+    "network": "网络操作失败",
+    "internal": "内部服务器错误",
+    "security": "检测到安全违规",
+    "resource_exhaustion": "系统资源耗尽",
+    "concurrency": "超出并发限制",
+    "data_corruption": "数据完整性违规",
+    "cryptographic": "密码学操作失败"
+  },
+  "messages": {
+    "startup": "FHE LLM 代理启动中...",
+    "shutdown": "正在优雅关闭...",
+    "key_rotation": "正在轮换加密密钥...",
+    "cache_eviction": "正在清除缓存条目...",
+    "health_check": "正在运行健康检查...",
+    "privacy_budget_reset": "用户隐私预算已重置",
+    "encryption_complete": "文本加密成功",
+    "decryption_complete": "文本解密成功",
+    "validation_passed": "输入验证通过",
+    "validation_failed": "输入验证失败",
+    "metrics_recorded": "性能指标已记录"
+  },
+  "api": {
+    "health_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "encrypt_endpoint": "/v1/encrypt",
+    "decrypt_endpoint": "/v1/decrypt",
+    "process_endpoint": "/v1/process",
+    "keys_endpoint": "/v1/keys",
+    "params_endpoint": "/v1/params"
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": "GDPR 合规已启用",
+      "data_subject_rights": "数据主体权利可用",
+      "consent_required": "处理需要用户同意",
+      "retention_policy": "数据保留政策已执行"
+    },
+    "ccpa": {
+      "enabled": "CCPA 合规已启用",
+      "privacy_rights": "加州居民隐私权利可用",
+      "opt_out": "退出机制可用"
+    },
+    "hipaa": {
+      "enabled": "HIPAA 合规已启用",
+      "phi_protection": "PHI 保护机制激活",
+      "audit_logging": "全面审计日志已启用"
+    }
+  }
+}

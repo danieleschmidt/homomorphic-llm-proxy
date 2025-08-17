@@ -61,7 +61,7 @@ impl ValidationFramework {
 
     pub fn with_fhe_defaults() -> Result<Self> {
         let mut framework = Self::new();
-        
+
         // Add default FHE validation rules
         framework.add_rule(ValidationRule {
             field_name: "plaintext".to_string(),
@@ -77,7 +77,10 @@ impl ValidationFramework {
             min_length: Some(36),
             max_length: Some(36),
             required: true,
-            pattern: Some(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$".to_string()),
+            pattern: Some(
+                r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    .to_string(),
+            ),
             custom_validator: None,
         });
 
@@ -173,7 +176,7 @@ impl ValidationFramework {
 
         // Input sanitization
         let sanitized_input = self.sanitize_input(input);
-        
+
         ValidationReport {
             is_valid: errors.is_empty(),
             errors,
@@ -193,7 +196,7 @@ impl ValidationFramework {
         // Remove null bytes and other dangerous characters
         sanitized = sanitized.replace('\0', "");
         sanitized = sanitized.replace('\u{FEFF}', ""); // BOM
-        
+
         // Normalize whitespace
         let normalized = sanitized
             .split_whitespace()
@@ -201,8 +204,12 @@ impl ValidationFramework {
             .join(" ");
 
         // Trim and limit length
-        let final_result = normalized.trim().chars().take(self.max_input_size).collect();
-        
+        let final_result = normalized
+            .trim()
+            .chars()
+            .take(self.max_input_size)
+            .collect();
+
         final_result
     }
 
@@ -229,7 +236,8 @@ impl ValidationFramework {
         }
 
         let total_bits: u64 = params.coeff_modulus_bits.iter().sum();
-        if total_bits > 880 { // Conservative limit for 128-bit security
+        if total_bits > 880 {
+            // Conservative limit for 128-bit security
             return Err(Error::Validation(
                 "Total coefficient modulus bits too high for security level".to_string(),
             ));
@@ -259,8 +267,18 @@ impl ValidationFramework {
 
         // SQL injection patterns
         let sql_patterns = [
-            "select ", "union ", "insert ", "delete ", "drop ", "exec ", "script",
-            "alter ", "create ", "truncate ", "grant ", "revoke ",
+            "select ",
+            "union ",
+            "insert ",
+            "delete ",
+            "drop ",
+            "exec ",
+            "script",
+            "alter ",
+            "create ",
+            "truncate ",
+            "grant ",
+            "revoke ",
         ];
 
         for pattern in &sql_patterns {
@@ -271,8 +289,16 @@ impl ValidationFramework {
 
         // XSS patterns
         let xss_patterns = [
-            "<script", "javascript:", "onload=", "onerror=", "onclick=",
-            "onmouseover=", "onfocus=", "onblur=", "onchange=", "onsubmit=",
+            "<script",
+            "javascript:",
+            "onload=",
+            "onerror=",
+            "onclick=",
+            "onmouseover=",
+            "onfocus=",
+            "onblur=",
+            "onchange=",
+            "onsubmit=",
         ];
 
         for pattern in &xss_patterns {
@@ -304,7 +330,8 @@ impl ValidationFramework {
 
     /// Validate UUID format and version
     pub fn validate_uuid(&self, uuid_str: &str) -> Result<Uuid> {
-        let uuid = uuid_str.parse::<Uuid>()
+        let uuid = uuid_str
+            .parse::<Uuid>()
             .map_err(|_| Error::Validation(format!("Invalid UUID format: {}", uuid_str)))?;
 
         // Check UUID version (should be version 4 for random UUIDs)
@@ -318,7 +345,10 @@ impl ValidationFramework {
     /// Validate base64 encoded data with size limits
     pub fn validate_base64(&self, data: &str, max_decoded_size: usize) -> Result<Vec<u8>> {
         // Check base64 format
-        if !data.chars().all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=') {
+        if !data
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=')
+        {
             return Err(Error::Validation("Invalid base64 characters".to_string()));
         }
 
@@ -356,7 +386,8 @@ fn validate_fhe_plaintext(input: &str) -> bool {
     }
 
     // Check for excessive whitespace (potential padding attack)
-    let whitespace_ratio = input.chars().filter(|c| c.is_whitespace()).count() as f64 / char_count as f64;
+    let whitespace_ratio =
+        input.chars().filter(|c| c.is_whitespace()).count() as f64 / char_count as f64;
     if whitespace_ratio > 0.8 {
         return false;
     }

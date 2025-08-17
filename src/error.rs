@@ -43,7 +43,7 @@ pub enum Error {
     /// Validation errors
     #[error("Validation error: {0}")]
     Validation(String),
-    
+
     /// Configuration error (alias for compatibility)
     #[error("Configuration error: {0}")]
     Configuration(String),

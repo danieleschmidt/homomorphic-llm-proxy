@@ -12,6 +12,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Advanced multi-level caching system
+#[derive(Debug)]
 pub struct PerformanceCache {
     l1_cache: Arc<RwLock<HashMap<CacheKey, CacheEntry>>>,
     l2_cache: Arc<RwLock<HashMap<CacheKey, CacheEntry>>>,
@@ -92,7 +93,7 @@ impl Default for CacheConfig {
         Self {
             l1_max_size: 1024 * 1024 * 100, // 100MB
             l2_max_size: 1024 * 1024 * 500, // 500MB
-            hot_max_size: 1024 * 1024 * 50,  // 50MB
+            hot_max_size: 1024 * 1024 * 50, // 50MB
             default_ttl: Duration::from_secs(3600),
             hot_threshold_accesses: 10,
             eviction_strategy: EvictionStrategy::Adaptive,
@@ -136,7 +137,7 @@ impl PerformanceCache {
             self.maybe_promote_to_hot(key, &entry).await;
             return Some(entry);
         }
-        
+
         self.stats.l1_misses.fetch_add(1, Ordering::Relaxed);
 
         // Check L2 cache
@@ -145,7 +146,7 @@ impl PerformanceCache {
             self.promote_to_l1(key.clone(), entry.clone()).await;
             return Some(entry);
         }
-        
+
         self.stats.l2_misses.fetch_add(1, Ordering::Relaxed);
         None
     }
@@ -156,7 +157,7 @@ impl PerformanceCache {
         key: &CacheKey,
     ) -> Option<CacheData> {
         let mut cache_map = cache.write().await;
-        
+
         if let Some(entry) = cache_map.get_mut(key) {
             // Check TTL
             if entry.created_at.elapsed() > entry.ttl {
@@ -167,7 +168,7 @@ impl PerformanceCache {
             // Update access information
             entry.accessed_at = Instant::now();
             entry.access_count.fetch_add(1, Ordering::Relaxed);
-            
+
             Some(entry.data.clone())
         } else {
             None
@@ -206,7 +207,7 @@ impl PerformanceCache {
         entry: CacheEntry,
     ) {
         let mut cache_map = cache.write().await;
-        
+
         // Check if eviction is needed
         if self.needs_eviction(&cache_map, entry.size_bytes).await {
             self.evict_entries(&mut cache_map).await;
@@ -229,8 +230,9 @@ impl PerformanceCache {
                     ttl: cache_entry.ttl,
                     priority: CachePriority::Critical,
                 };
-                
-                self.put_in_cache(&self.hot_cache, key.clone(), hot_entry).await;
+
+                self.put_in_cache(&self.hot_cache, key.clone(), hot_entry)
+                    .await;
             }
         }
     }
@@ -246,7 +248,7 @@ impl PerformanceCache {
                 ttl: cache_entry.ttl,
                 priority: CachePriority::High,
             };
-            
+
             self.put_in_cache(&self.l1_cache, key, l1_entry).await;
         }
     }
@@ -268,11 +270,15 @@ impl PerformanceCache {
     async fn evict_lru(&self, cache: &mut HashMap<CacheKey, CacheEntry>) {
         let mut entries: Vec<_> = cache.iter().collect();
         entries.sort_by_key(|(_, entry)| entry.accessed_at);
-        
+
         // Remove oldest 20% of entries
         let remove_count = cache.len() / 5;
-        let keys_to_remove: Vec<_> = entries.iter().take(remove_count).map(|(k, _)| (*k).clone()).collect();
-        
+        let keys_to_remove: Vec<_> = entries
+            .iter()
+            .take(remove_count)
+            .map(|(k, _)| (*k).clone())
+            .collect();
+
         for key in keys_to_remove {
             cache.remove(&key);
             self.stats.evictions.fetch_add(1, Ordering::Relaxed);
@@ -282,10 +288,14 @@ impl PerformanceCache {
     async fn evict_lfu(&self, cache: &mut HashMap<CacheKey, CacheEntry>) {
         let mut entries: Vec<_> = cache.iter().collect();
         entries.sort_by_key(|(_, entry)| entry.access_count.load(Ordering::Relaxed));
-        
+
         let remove_count = cache.len() / 5;
-        let keys_to_remove: Vec<_> = entries.iter().take(remove_count).map(|(k, _)| (*k).clone()).collect();
-        
+        let keys_to_remove: Vec<_> = entries
+            .iter()
+            .take(remove_count)
+            .map(|(k, _)| (*k).clone())
+            .collect();
+
         for key in keys_to_remove {
             cache.remove(&key);
             self.stats.evictions.fetch_add(1, Ordering::Relaxed);
@@ -295,17 +305,21 @@ impl PerformanceCache {
     async fn evict_tlru(&self, cache: &mut HashMap<CacheKey, CacheEntry>) {
         let now = Instant::now();
         let mut entries: Vec<_> = cache.iter().collect();
-        
+
         // Combine recency and frequency
         entries.sort_by_key(|(_, entry)| {
             let recency_score = now.duration_since(entry.accessed_at).as_secs();
             let frequency_score = entry.access_count.load(Ordering::Relaxed);
             recency_score * 1000 / (frequency_score + 1) // Lower is better
         });
-        
+
         let remove_count = cache.len() / 5;
-        let keys_to_remove: Vec<_> = entries.iter().take(remove_count).map(|(k, _)| (*k).clone()).collect();
-        
+        let keys_to_remove: Vec<_> = entries
+            .iter()
+            .take(remove_count)
+            .map(|(k, _)| (*k).clone())
+            .collect();
+
         for key in keys_to_remove {
             cache.remove(&key);
             self.stats.evictions.fetch_add(1, Ordering::Relaxed);
@@ -315,7 +329,7 @@ impl PerformanceCache {
     async fn evict_adaptive(&self, cache: &mut HashMap<CacheKey, CacheEntry>) {
         // Adaptive strategy based on cache performance
         let hit_ratio = self.get_hit_ratio().await;
-        
+
         if hit_ratio > 0.8 {
             // High hit ratio: prefer LFU to keep popular items
             self.evict_lfu(cache).await;
@@ -326,12 +340,12 @@ impl PerformanceCache {
     }
 
     pub async fn get_hit_ratio(&self) -> f64 {
-        let total_hits = self.stats.l1_hits.load(Ordering::Relaxed) +
-                        self.stats.l2_hits.load(Ordering::Relaxed) +
-                        self.stats.hot_hits.load(Ordering::Relaxed);
-        let total_misses = self.stats.l1_misses.load(Ordering::Relaxed) +
-                          self.stats.l2_misses.load(Ordering::Relaxed);
-        
+        let total_hits = self.stats.l1_hits.load(Ordering::Relaxed)
+            + self.stats.l2_hits.load(Ordering::Relaxed)
+            + self.stats.hot_hits.load(Ordering::Relaxed);
+        let total_misses = self.stats.l1_misses.load(Ordering::Relaxed)
+            + self.stats.l2_misses.load(Ordering::Relaxed);
+
         if total_hits + total_misses == 0 {
             0.0
         } else {
@@ -361,10 +375,8 @@ impl PerformanceCache {
     async fn cleanup_cache_expired(&self, cache: &Arc<RwLock<HashMap<CacheKey, CacheEntry>>>) {
         let mut cache_map = cache.write().await;
         let now = Instant::now();
-        
-        cache_map.retain(|_, entry| {
-            now.duration_since(entry.created_at) <= entry.ttl
-        });
+
+        cache_map.retain(|_, entry| now.duration_since(entry.created_at) <= entry.ttl);
     }
 
     pub async fn get_detailed_stats(&self) -> CacheStatsReport {
@@ -381,7 +393,10 @@ impl PerformanceCache {
             l1_size: self.l1_cache.read().await.len(),
             l2_size: self.l2_cache.read().await.len(),
             hot_size: self.hot_cache.read().await.len(),
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         }
     }
 }
@@ -411,12 +426,13 @@ pub struct AdvancedConnectionPool {
     auto_scaler: PoolAutoScaler,
 }
 
+#[derive(Debug)]
 pub struct ConnectionPoolShard {
-    id: usize,
-    engines: Vec<Arc<RwLock<FheEngine>>>,
-    current_load: AtomicUsize,
-    max_load: usize,
-    health_score: AtomicU64, // 0-100
+    pub id: usize,
+    pub engines: Vec<Arc<RwLock<FheEngine>>>,
+    pub current_load: AtomicUsize,
+    pub max_load: usize,
+    pub health_score: AtomicU64, // 0-100
 }
 
 pub struct LoadBalancer {
@@ -464,14 +480,14 @@ impl AdvancedConnectionPool {
         strategy: LoadBalancingStrategy,
     ) -> Result<Self> {
         let mut pools = Vec::with_capacity(initial_shards);
-        
+
         for i in 0..initial_shards {
             let mut engines = Vec::with_capacity(engines_per_shard);
             for _ in 0..engines_per_shard {
                 let engine = FheEngine::new(Default::default())?;
                 engines.push(Arc::new(RwLock::new(engine)));
             }
-            
+
             pools.push(ConnectionPoolShard {
                 id: i,
                 engines,
@@ -532,14 +548,14 @@ impl AdvancedConnectionPool {
         // Simplified weighted selection
         let total_weight: f64 = self.load_balancer.weights.iter().sum();
         let mut random_value = fastrand::f64() * total_weight;
-        
+
         for (idx, &weight) in self.load_balancer.weights.iter().enumerate() {
             random_value -= weight;
             if random_value <= 0.0 {
                 return idx;
             }
         }
-        
+
         0
     }
 
@@ -561,7 +577,7 @@ impl AdvancedConnectionPool {
                 let health = shard.health_score.load(Ordering::Relaxed);
                 let load = shard.current_load.load(Ordering::Relaxed);
                 let capacity = shard.max_load;
-                
+
                 // Score: health weighted by available capacity
                 health * (capacity - load) as u64 / capacity as u64
             })
@@ -577,21 +593,21 @@ impl AdvancedConnectionPool {
     {
         let shard_idx = self.get_optimal_shard().await;
         let shard = &self.pools[shard_idx];
-        
+
         // Increment load counter
         shard.current_load.fetch_add(1, Ordering::Relaxed);
-        
+
         let result = {
             // Select engine within shard (round-robin)
             let engine_idx = shard.current_load.load(Ordering::Relaxed) % shard.engines.len();
             let engine = Arc::clone(&shard.engines[engine_idx]);
-            
+
             operation(engine)
         };
-        
+
         // Decrement load counter
         shard.current_load.fetch_sub(1, Ordering::Relaxed);
-        
+
         result
     }
 
@@ -600,12 +616,13 @@ impl AdvancedConnectionPool {
         // Perform health checks
         for (idx, shard) in self.pools.iter().enumerate() {
             let start = Instant::now();
-            let load_percent = shard.current_load.load(Ordering::Relaxed) as f64 / shard.max_load as f64;
-            
+            let load_percent =
+                shard.current_load.load(Ordering::Relaxed) as f64 / shard.max_load as f64;
+
             // Simulate health check
             let success = load_percent < 0.95; // Consider unhealthy if > 95% load
             let response_time = start.elapsed().as_millis() as u64;
-            
+
             let health_result = HealthCheckResult {
                 shard_id: idx,
                 timestamp: start,
@@ -613,33 +630,36 @@ impl AdvancedConnectionPool {
                 success,
                 load_percent,
             };
-            
+
             self.health_monitor.health_checks.push_back(health_result);
-            
+
             // Update health score
             let new_health = if success {
                 std::cmp::min(100, shard.health_score.load(Ordering::Relaxed) + 5)
             } else {
-                shard.health_score.load(Ordering::Relaxed).saturating_sub(10)
+                shard
+                    .health_score
+                    .load(Ordering::Relaxed)
+                    .saturating_sub(10)
             };
             shard.health_score.store(new_health, Ordering::Relaxed);
         }
-        
+
         // Trim old health checks
         while self.health_monitor.health_checks.len() > 1000 {
             self.health_monitor.health_checks.pop_front();
         }
-        
+
         // Check if scaling is needed
         self.evaluate_scaling().await?;
-        
+
         Ok(())
     }
 
     async fn evaluate_scaling(&mut self) -> Result<()> {
         let avg_load = self.get_average_load();
         let now = Instant::now();
-        
+
         // Check cooldown
         if let Some(last_action) = self.auto_scaler.last_scale_action {
             let cooldown = if avg_load > self.auto_scaler.scale_up_threshold {
@@ -647,25 +667,37 @@ impl AdvancedConnectionPool {
             } else {
                 self.auto_scaler.scale_down_cooldown
             };
-            
+
             if now.duration_since(last_action) < cooldown {
                 return Ok(());
             }
         }
-        
+
         // Scale up if needed
-        if avg_load > self.auto_scaler.scale_up_threshold && self.pools.len() < self.auto_scaler.max_shards {
+        if avg_load > self.auto_scaler.scale_up_threshold
+            && self.pools.len() < self.auto_scaler.max_shards
+        {
             self.scale_up().await?;
             self.auto_scaler.last_scale_action = Some(now);
-            log::info!("Scaled up to {} shards due to high load: {:.2}", self.pools.len(), avg_load);
+            log::info!(
+                "Scaled up to {} shards due to high load: {:.2}",
+                self.pools.len(),
+                avg_load
+            );
         }
         // Scale down if needed
-        else if avg_load < self.auto_scaler.scale_down_threshold && self.pools.len() > self.auto_scaler.min_shards {
+        else if avg_load < self.auto_scaler.scale_down_threshold
+            && self.pools.len() > self.auto_scaler.min_shards
+        {
             self.scale_down().await?;
             self.auto_scaler.last_scale_action = Some(now);
-            log::info!("Scaled down to {} shards due to low load: {:.2}", self.pools.len(), avg_load);
+            log::info!(
+                "Scaled down to {} shards due to low load: {:.2}",
+                self.pools.len(),
+                avg_load
+            );
         }
-        
+
         Ok(())
     }
 
@@ -673,27 +705,26 @@ impl AdvancedConnectionPool {
         if self.pools.is_empty() {
             return 0.0;
         }
-        
-        let total_load: f64 = self.pools
+
+        let total_load: f64 = self
+            .pools
             .iter()
-            .map(|shard| {
-                shard.current_load.load(Ordering::Relaxed) as f64 / shard.max_load as f64
-            })
+            .map(|shard| shard.current_load.load(Ordering::Relaxed) as f64 / shard.max_load as f64)
             .sum();
-        
+
         total_load / self.pools.len() as f64
     }
 
     async fn scale_up(&mut self) -> Result<()> {
         let new_shard_id = self.pools.len();
         let engines_per_shard = 4; // Default
-        
+
         let mut engines = Vec::with_capacity(engines_per_shard);
         for _ in 0..engines_per_shard {
             let engine = FheEngine::new(Default::default())?;
             engines.push(Arc::new(RwLock::new(engine)));
         }
-        
+
         let new_shard = ConnectionPoolShard {
             id: new_shard_id,
             engines,
@@ -701,10 +732,10 @@ impl AdvancedConnectionPool {
             max_load: engines_per_shard * 10,
             health_score: AtomicU64::new(100),
         };
-        
+
         self.pools.push(new_shard);
         self.load_balancer.weights.push(1.0);
-        
+
         Ok(())
     }
 
@@ -712,34 +743,37 @@ impl AdvancedConnectionPool {
         if self.pools.len() <= self.auto_scaler.min_shards {
             return Ok(());
         }
-        
+
         // Find the shard with the lowest load
-        let remove_idx = self.pools
+        let remove_idx = self
+            .pools
             .iter()
             .enumerate()
             .min_by_key(|(_, shard)| shard.current_load.load(Ordering::Relaxed))
             .map(|(idx, _)| idx)
             .unwrap_or(self.pools.len() - 1);
-        
+
         self.pools.remove(remove_idx);
         self.load_balancer.weights.remove(remove_idx);
-        
+
         Ok(())
     }
 
     pub fn get_pool_statistics(&self) -> PoolStatistics {
-        let total_load = self.pools.iter()
+        let total_load = self
+            .pools
+            .iter()
             .map(|s| s.current_load.load(Ordering::Relaxed))
             .sum();
-        
-        let total_capacity = self.pools.iter()
-            .map(|s| s.max_load)
-            .sum();
-        
+
+        let total_capacity = self.pools.iter().map(|s| s.max_load).sum();
+
         let avg_health = if !self.pools.is_empty() {
-            self.pools.iter()
+            self.pools
+                .iter()
                 .map(|s| s.health_score.load(Ordering::Relaxed))
-                .sum::<u64>() / self.pools.len() as u64
+                .sum::<u64>()
+                / self.pools.len() as u64
         } else {
             0
         };
@@ -748,10 +782,10 @@ impl AdvancedConnectionPool {
             total_shards: self.pools.len(),
             total_load,
             total_capacity,
-            load_percentage: if total_capacity > 0 { 
-                (total_load as f64 / total_capacity as f64) * 100.0 
-            } else { 
-                0.0 
+            load_percentage: if total_capacity > 0 {
+                (total_load as f64 / total_capacity as f64) * 100.0
+            } else {
+                0.0
             },
             average_health_score: avg_health,
             strategy: self.load_balancer.strategy.clone(),
@@ -777,23 +811,25 @@ mod tests {
     #[tokio::test]
     async fn test_performance_cache() {
         let cache = PerformanceCache::new(CacheConfig::default());
-        
+
         let key = CacheKey {
             operation_type: "encrypt".to_string(),
             input_hash: 12345,
             params_hash: 67890,
             client_id: Uuid::new_v4(),
         };
-        
+
         let data = CacheData::Result("test_result".to_string());
-        
+
         // Test cache miss
         assert!(cache.get(&key).await.is_none());
-        
+
         // Test cache put and hit
-        cache.put(key.clone(), data.clone(), CachePriority::Normal).await;
+        cache
+            .put(key.clone(), data.clone(), CachePriority::Normal)
+            .await;
         assert!(cache.get(&key).await.is_some());
-        
+
         // Test stats
         let stats = cache.get_detailed_stats().await;
         assert!(stats.l2_hits > 0 || stats.l1_hits > 0);
@@ -805,8 +841,9 @@ mod tests {
             2, // shards
             2, // engines per shard
             LoadBalancingStrategy::LeastConnections,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let stats = pool.get_pool_statistics();
         assert_eq!(stats.total_shards, 2);
         assert_eq!(stats.total_capacity, 40); // 2 shards * 2 engines * 10 capacity
@@ -820,10 +857,10 @@ mod tests {
             params_hash: 67890,
             client_id: Uuid::new_v4(),
         };
-        
+
         let key2 = key1.clone();
         assert_eq!(key1, key2);
-        
+
         let mut map = HashMap::new();
         map.insert(key1.clone(), "value1");
         assert_eq!(map.get(&key2), Some(&"value1"));

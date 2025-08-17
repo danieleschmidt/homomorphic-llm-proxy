@@ -6,10 +6,15 @@
 mod config;
 mod error;
 mod fhe;
+mod health;
+mod i18n;
 mod middleware;
 mod monitoring;
+mod performance;
 mod proxy;
 mod scaling;
+mod security;
+mod validation;
 
 use config::Config;
 use error::Result;

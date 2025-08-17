@@ -70,7 +70,7 @@ regex = "1.11"
 fastrand = "2.1"
 
 # Optional GPU acceleration
-cudarc = { version = "0.17", optional = true }
+cudarc = { version = "0.17", optional = true, features = ["cuda-version-from-build-system"] }
 criterion = { version = "0.7", features = ["html_reports"], optional = true }
 
 [dev-dependencies.criterion]

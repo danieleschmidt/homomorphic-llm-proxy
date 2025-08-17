@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "FHE LLM プロキシ",
+    "description": "準同型暗号によるプライバシー保護AI推論"
+  },
+  "errors": {
+    "validation": "入力検証に失敗しました",
+    "encryption": "暗号化操作に失敗しました",
+    "auth": "認証が必要です",
+    "rate_limit": "レート制限を超過しました",
+    "privacy_budget": "プライバシー予算が枯渇しました",
+    "config": "設定エラー",
+    "network": "ネットワーク操作に失敗しました",
+    "internal": "内部サーバーエラー",
+    "security": "セキュリティ違反が検出されました",
+    "resource_exhaustion": "システムリソースが枯渇しました",
+    "concurrency": "同時実行制限を超過しました",
+    "data_corruption": "データ整合性違反",
+    "cryptographic": "暗号学的操作に失敗しました"
+  },
+  "messages": {
+    "startup": "FHE LLM プロキシを起動中...",
+    "shutdown": "正常にシャットダウン中...",
+    "key_rotation": "暗号化キーをローテーション中...",
+    "cache_eviction": "キャッシュエントリを削除中...",
+    "health_check": "ヘルスチェックを実行中...",
+    "privacy_budget_reset": "ユーザーのプライバシー予算がリセットされました",
+    "encryption_complete": "テキストの暗号化が成功しました",
+    "decryption_complete": "テキストの復号化が成功しました",
+    "validation_passed": "入力検証が合格しました",
+    "validation_failed": "入力検証が失敗しました",
+    "metrics_recorded": "パフォーマンスメトリクスを記録しました"
+  },
+  "api": {
+    "health_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "encrypt_endpoint": "/v1/encrypt",
+    "decrypt_endpoint": "/v1/decrypt",
+    "process_endpoint": "/v1/process",
+    "keys_endpoint": "/v1/keys",
+    "params_endpoint": "/v1/params"
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": "GDPR準拠が有効",
+      "data_subject_rights": "データ主体の権利が利用可能",
+      "consent_required": "処理にはユーザーの同意が必要",
+      "retention_policy": "データ保持ポリシーが実行されています"
+    },
+    "ccpa": {
+      "enabled": "CCPA準拠が有効",
+      "privacy_rights": "カリフォルニア州住民のプライバシー権が利用可能",
+      "opt_out": "オプトアウトメカニズムが利用可能"
+    },
+    "hipaa": {
+      "enabled": "HIPAA準拠が有効",
+      "phi_protection": "PHI保護メカニズムがアクティブ",
+      "audit_logging": "包括的な監査ログが有効"
+    }
+  }
+}
