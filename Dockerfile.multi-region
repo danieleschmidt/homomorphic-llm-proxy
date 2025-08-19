@@ -1,7 +1,7 @@
 # Multi-region production Dockerfile for FHE LLM Proxy
 # Optimized for global deployment with regional compliance
 
-FROM nvidia/cuda:12.1-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:13.0.0-devel-ubuntu22.04 as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -31,7 +31,7 @@ COPY . .
 RUN cargo build --release --features="gpu-acceleration,metrics,compliance"
 
 # Runtime image
-FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+FROM nvidia/cuda:13.0.0-runtime-ubuntu22.04
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
