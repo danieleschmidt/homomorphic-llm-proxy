@@ -49,6 +49,12 @@ pub enum ErrorSeverity {
     Critical,
 }
 
+impl Default for ValidationFramework {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValidationFramework {
     pub fn new() -> Self {
         Self {

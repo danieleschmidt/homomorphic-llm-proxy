@@ -520,7 +520,7 @@ impl ExternalServiceHealthCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fhe::FheParams;
+    // use crate::fhe::FheParams; // Unused import removed
 
     #[tokio::test]
     async fn test_health_checker() {
@@ -559,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_health_status_priority() {
-        let statuses = vec![
+        let statuses = [
             HealthStatus::Healthy,
             HealthStatus::Warning,
             HealthStatus::Critical,

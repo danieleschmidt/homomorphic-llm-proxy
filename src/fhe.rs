@@ -37,6 +37,7 @@ pub struct Ciphertext {
 
 /// Client key for encryption/decryption
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ClientKey {
     pub id: Uuid,
     key_data: Vec<u8>, // Simulated key data
@@ -45,6 +46,7 @@ pub struct ClientKey {
 
 /// Server key for homomorphic operations
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ServerKey {
     pub id: Uuid,
     key_data: Vec<u8>, // Simulated key data
