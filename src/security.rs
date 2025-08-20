@@ -497,7 +497,7 @@ impl AdaptiveRateLimiter {
             suspicious.last_violation > cutoff
                 || suspicious
                     .blocked_until
-                    .map_or(false, |until| Instant::now() < until)
+                    .is_some_and(|until| Instant::now() < until)
         });
 
         let after_count = self.suspicious_ips.len();
@@ -516,7 +516,7 @@ impl AdaptiveRateLimiter {
             .values()
             .filter(|s| {
                 s.blocked_until
-                    .map_or(false, |until| Instant::now() < until)
+                    .is_some_and(|until| Instant::now() < until)
             })
             .count();
 

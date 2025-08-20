@@ -67,6 +67,7 @@ pub struct ErrorMetrics {
 
 /// Health check and monitoring service
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MonitoringService {
     start_time: Instant,
     version: String,

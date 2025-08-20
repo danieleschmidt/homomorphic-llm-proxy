@@ -806,7 +806,7 @@ pub struct PoolStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fhe::FheParams;
+    // use crate::fhe::FheParams; // Unused import removed
 
     #[tokio::test]
     async fn test_performance_cache() {

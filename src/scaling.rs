@@ -19,7 +19,7 @@ pub struct FheConnectionPool {
 }
 
 #[derive(Debug, Clone)]
-struct PoolStats {
+pub struct PoolStats {
     total_operations: u64,
     active_operations: u64,
     avg_operation_time: Duration,
@@ -244,7 +244,7 @@ struct BatchOperation {
 }
 
 #[derive(Debug, Clone)]
-enum BatchOperationType {
+pub enum BatchOperationType {
     Encrypt {
         client_id: Uuid,
         plaintext: String,
@@ -387,7 +387,7 @@ struct CacheEntry {
 }
 
 #[derive(Debug, Clone)]
-struct CacheStats {
+pub struct CacheStats {
     hits: u64,
     misses: u64,
     evictions: u64,
@@ -548,6 +548,12 @@ pub struct AccessPrediction {
     pub ciphertext_id: Uuid,
     pub confidence: f64,
     pub predicted_access_time: Duration,
+}
+
+impl Default for PredictionEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PredictionEngine {
@@ -747,7 +753,7 @@ pub struct CircuitBreaker {
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]
-enum CircuitState {
+pub enum CircuitState {
     Closed,   // Normal operation
     Open,     // Failing, reject requests
     HalfOpen, // Testing if service recovered
@@ -952,7 +958,7 @@ mod tests {
                 assert_eq!(from, 1);
                 assert_eq!(to, 2);
             }
-            _ => panic!("Expected scale up decision"),
+            _ => unreachable!("Expected scale up decision"),
         }
     }
 }

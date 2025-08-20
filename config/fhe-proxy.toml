@@ -1,0 +1,64 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+timeout_seconds = 30
+max_connections = 1000
+enable_cors = true
+cors_origins = ["*"]
+
+[fhe]
+security_level = 128
+polynomial_degree = 4096
+noise_standard_deviation = 3.2
+ciphertext_cache_size = 10000
+key_rotation_interval_hours = 24
+
+[providers]
+default = "anthropic"
+
+[providers.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
+base_url = "https://api.anthropic.com"
+model = "claude-3-sonnet-20240229"
+max_tokens = 4096
+temperature = 0.7
+
+[security]
+rate_limit_per_minute = 100
+max_request_size_mb = 10
+session_timeout_minutes = 60
+api_key_rotation_days = 30
+
+[monitoring]
+enable_metrics = true
+metrics_port = 9090
+health_check_interval_seconds = 30
+log_level = "info"
+structured_logging = true
+
+[scaling]
+min_fhe_engines = 2
+max_fhe_engines = 16
+auto_scaling_enabled = true
+cpu_threshold_percent = 80
+memory_threshold_percent = 85
+
+[compliance]
+gdpr_enabled = true
+ccpa_enabled = true
+pdpa_enabled = true
+data_retention_days = 90
+audit_logging = true
+
+[i18n]
+default_language = "en"
+supported_languages = ["en", "es", "fr", "de", "ja", "zh"]
+translation_cache_size = 1000
+
+[deployment]
+region = "us-west-2"
+environment = "production"
+container_registry = "ghcr.io/terragon-labs"
+image_tag = "latest"
+replicas = 3
