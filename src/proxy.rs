@@ -408,7 +408,7 @@ async fn generate_keys(
     let timer = state.profiler.start_timer("key_generation");
 
     // Check system capacity before generating keys
-    let stats = state.fhe_engine.read().await.get_encryption_stats();
+    let stats = state.fhe_engine.read().await.get_stats();
     if stats.total_client_keys > 1000 {
         log::warn!(
             "Key generation limit approached: {} active keys",
