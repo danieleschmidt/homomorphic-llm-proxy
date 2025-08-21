@@ -1,0 +1,333 @@
+# Production Kubernetes Deployment for FHE LLM Proxy
+# Comprehensive deployment with security, monitoring, and scaling
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fhe-proxy-prod
+  labels:
+    name: fhe-proxy-prod
+    environment: production
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fhe-proxy-config
+  namespace: fhe-proxy-prod
+data:
+  production.toml: |
+    [server]
+    host = "0.0.0.0"
+    port = 8080
+    metrics_port = 9090
+    workers = 4
+    max_connections = 10000
+    
+    [fhe]
+    poly_modulus_degree = 16384
+    security_level = 128
+    coeff_modulus_bits = [60, 40, 40, 60]
+    scale_bits = 40
+    enable_gpu = true
+    batch_size = 1024
+    
+    [security]
+    require_api_key = true
+    rate_limit_per_minute = 100
+    cors_origins = ["*"]
+    
+    [monitoring]
+    enable_metrics = true
+    enable_tracing = true
+    log_level = "info"
+    log_format = "json"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fhe-proxy-secrets
+  namespace: fhe-proxy-prod
+type: Opaque
+stringData:
+  JWT_SECRET: "your-super-secure-jwt-secret-change-in-production"
+  API_KEY: "your-api-key-change-in-production"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fhe-proxy
+  namespace: fhe-proxy-prod
+  labels:
+    app: fhe-proxy
+    version: v4.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: fhe-proxy
+  template:
+    metadata:
+      labels:
+        app: fhe-proxy
+        version: v4.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: fhe-proxy
+        image: fhe-proxy:v4.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: FHE_CONFIG_PATH
+          value: "/app/config/production.toml"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: fhe-proxy-secrets
+              key: JWT_SECRET
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: fhe-proxy-config
+      - name: data
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: "high-performance"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: fhe-proxy
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fhe-proxy-service
+  namespace: fhe-proxy-prod
+  labels:
+    app: fhe-proxy
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+spec:
+  type: ClusterIP
+  selector:
+    app: fhe-proxy
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fhe-proxy-lb
+  namespace: fhe-proxy-prod
+  labels:
+    app: fhe-proxy
+spec:
+  type: LoadBalancer
+  selector:
+    app: fhe-proxy
+  ports:
+  - name: http
+    port: 443
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fhe-proxy-hpa
+  namespace: fhe-proxy-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fhe-proxy
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fhe-proxy-ingress
+  namespace: fhe-proxy-prod
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+  - hosts:
+    - api.fhe-proxy.com
+    secretName: fhe-proxy-tls
+  rules:
+  - host: api.fhe-proxy.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fhe-proxy-service
+            port:
+              number: 80
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fhe-proxy-pdb
+  namespace: fhe-proxy-prod
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: fhe-proxy
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fhe-proxy-netpol
+  namespace: fhe-proxy-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: fhe-proxy
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS

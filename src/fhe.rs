@@ -6,6 +6,90 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fhe_params_default() {
+        let params = FheParams::default();
+        assert_eq!(params.poly_modulus_degree, 16384);
+        assert_eq!(params.security_level, 128);
+        assert!(!params.coeff_modulus_bits.is_empty());
+    }
+
+    #[test]
+    fn test_fhe_engine_creation() {
+        let params = FheParams::default();
+        let engine = FheEngine::new(params);
+        assert!(engine.is_ok());
+    }
+
+    #[test]
+    fn test_key_generation() {
+        let params = FheParams::default();
+        let mut engine = FheEngine::new(params).expect("Failed to create engine");
+        
+        let result = engine.generate_keys();
+        assert!(result.is_ok());
+        
+        let (client_id, server_id) = result.unwrap();
+        assert_ne!(client_id, Uuid::nil());
+        assert_ne!(server_id, Uuid::nil());
+    }
+
+    #[test]
+    fn test_encryption_decryption() {
+        let params = FheParams::default();
+        let mut engine = FheEngine::new(params).expect("Failed to create engine");
+        
+        let (client_id, _) = engine.generate_keys().expect("Failed to generate keys");
+        
+        let plaintext = "Hello FHE!";
+        let ciphertext = engine.encrypt_text(client_id, plaintext).expect("Failed to encrypt");
+        let decrypted = engine.decrypt_text(client_id, &ciphertext).expect("Failed to decrypt");
+        
+        assert_eq!(plaintext, decrypted);
+        assert!(!ciphertext.data.is_empty());
+        assert!(ciphertext.noise_budget.is_some());
+    }
+
+    #[test]
+    fn test_input_validation() {
+        let params = FheParams::default();
+        let mut engine = FheEngine::new(params).expect("Failed to create engine");
+        
+        let (client_id, _) = engine.generate_keys().expect("Failed to generate keys");
+        
+        // Test empty input
+        assert!(engine.encrypt_text(client_id, "").is_err());
+        
+        // Test too long input
+        let long_text = "x".repeat(15000);
+        assert!(engine.encrypt_text(client_id, &long_text).is_err());
+        
+        // Test malicious input
+        let malicious = "text<script>alert('xss')</script>";
+        assert!(engine.encrypt_text(client_id, malicious).is_err());
+    }
+
+    #[test]
+    fn test_engine_stats() {
+        let params = FheParams::default();
+        let mut engine = FheEngine::new(params).expect("Failed to create engine");
+        
+        let initial_stats = engine.get_stats();
+        assert_eq!(initial_stats.total_client_keys, 0);
+        assert_eq!(initial_stats.total_server_keys, 0);
+        
+        let _ = engine.generate_keys().expect("Failed to generate keys");
+        
+        let stats = engine.get_stats();
+        assert_eq!(stats.total_client_keys, 1);
+        assert_eq!(stats.total_server_keys, 1);
+    }
+}
+
 /// FHE parameters for CKKS-like operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FheParams {
@@ -51,6 +135,14 @@ pub struct ServerKey {
     pub id: Uuid,
     key_data: Vec<u8>, // Simulated key data
     params: FheParams,
+}
+
+/// Statistics for FHE engine
+#[derive(Debug, Serialize)]
+pub struct FheStats {
+    pub total_client_keys: usize,
+    pub total_server_keys: usize,
+    pub params: FheParams,
 }
 
 /// FHE engine for homomorphic operations
@@ -219,22 +311,57 @@ impl FheEngine {
 
         log::debug!("Decrypting ciphertext {}", ciphertext.id);
 
-        // Simulate decryption by reconstructing bytes from boolean array
-        let mut text_bytes = Vec::new();
-
-        for chunk in ciphertext.data.chunks(8) {
-            if chunk.len() == 8 {
-                let mut byte = 0u8;
-                for (i, &bit_byte) in chunk.iter().enumerate() {
-                    if bit_byte != 0 {
-                        byte |= 1 << i;
-                    }
-                }
-                text_bytes.push(byte);
-            }
+        // Extract metadata from encrypted data
+        if ciphertext.data.len() < 4 {
+            return Err(Error::Fhe("Invalid ciphertext format".to_string()));
         }
 
-        String::from_utf8(text_bytes).map_err(|e| Error::Fhe(format!("UTF-8 decode error: {}", e)))
+        let metadata_len = u32::from_le_bytes([
+            ciphertext.data[0],
+            ciphertext.data[1],
+            ciphertext.data[2],
+            ciphertext.data[3],
+        ]) as usize;
+
+        if ciphertext.data.len() < 4 + metadata_len {
+            return Err(Error::Fhe("Corrupted ciphertext metadata".to_string()));
+        }
+
+        let metadata_bytes = &ciphertext.data[4..4 + metadata_len];
+        let _metadata = String::from_utf8(metadata_bytes.to_vec())
+            .map_err(|_| Error::Fhe("Invalid metadata encoding".to_string()))?;
+
+        // Decrypt the boolean array back to text
+        let encrypted_bits = &ciphertext.data[4 + metadata_len..];
+        let mut text_bytes = Vec::new();
+
+        // Decrypt bits back to bytes (simulated)
+        for chunk in encrypted_bits.chunks(8) {
+            if chunk.len() != 8 {
+                break; // Incomplete byte at end
+            }
+            let mut byte = 0u8;
+            for (i, &encrypted_bit) in chunk.iter().enumerate() {
+                // In real implementation, decrypt each encrypted boolean with concrete
+                let bit = encrypted_bit != 0; // Simulated decryption
+                if bit {
+                    byte |= 1 << i;
+                }
+            }
+            text_bytes.push(byte);
+        }
+
+        // Convert bytes back to string
+        let plaintext = String::from_utf8(text_bytes)
+            .map_err(|_| Error::Fhe("Invalid UTF-8 in decrypted data".to_string()))?;
+
+        log::debug!(
+            "Successfully decrypted {} characters for client {}",
+            plaintext.len(),
+            client_id
+        );
+
+        Ok(plaintext)
     }
 
     /// Perform homomorphic string concatenation with enhanced security
@@ -346,6 +473,20 @@ impl FheEngine {
         }
 
         Ok(true)
+    }
+
+    /// Get engine statistics
+    pub fn get_stats(&self) -> FheStats {
+        FheStats {
+            total_client_keys: self.client_keys.len(),
+            total_server_keys: self.server_keys.len(),
+            params: self.params.clone(),
+        }
+    }
+
+    /// Create default engine with standard parameters
+    pub fn default() -> Result<Self> {
+        Self::new(FheParams::default())
     }
 
     /// Get encryption parameters

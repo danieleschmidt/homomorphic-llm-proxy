@@ -1,0 +1,141 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+metrics_port = 9090
+workers = 4
+max_connections = 10000
+keep_alive_timeout = 60
+request_timeout = 30
+read_buffer_size = 32768
+write_buffer_size = 32768
+
+[fhe]
+# Production-grade FHE parameters
+poly_modulus_degree = 16384
+security_level = 128
+coeff_modulus_bits = [60, 40, 40, 60]
+scale_bits = 40
+relinearization_keys = true
+galois_keys = true
+# Enable GPU acceleration if available
+enable_gpu = true
+gpu_memory_limit = "8GB"
+batch_size = 1024
+
+[security]
+# API key validation
+require_api_key = true
+api_key_header = "X-API-Key"
+# Rate limiting (requests per minute per IP)
+rate_limit_per_minute = 100
+rate_limit_burst = 10
+# JWT settings
+jwt_secret_env = "JWT_SECRET"
+jwt_expiration = 3600
+# CORS settings
+cors_origins = ["https://api.company.com", "https://app.company.com"]
+cors_max_age = 3600
+
+[privacy]
+# Differential privacy settings
+enable_privacy_budget = true
+default_epsilon = 1.0
+default_delta = 1e-5
+max_epsilon_per_user = 10.0
+budget_reset_interval = 86400 # 24 hours in seconds
+
+[cache]
+# Multi-tier caching
+enable_caching = true
+l1_max_size = 1000
+l1_ttl = 300
+l2_max_size = 10000  
+l2_ttl = 3600
+hot_cache_size = 100
+hot_threshold = 10
+compression_enabled = true
+encryption_enabled = true
+
+[database]
+# Connection pooling
+max_connections = 20
+min_connections = 5
+acquire_timeout = 30
+idle_timeout = 600
+max_lifetime = 1800
+
+[monitoring]
+# Observability settings
+enable_metrics = true
+enable_tracing = true
+metrics_path = "/metrics"
+health_path = "/health"
+ready_path = "/ready"
+log_level = "info"
+log_format = "json"
+# Prometheus settings
+prometheus_push_gateway = "http://prometheus-pushgateway:9091"
+metrics_interval = 15
+
+[telemetry]
+# OpenTelemetry configuration
+service_name = "fhe-llm-proxy"
+service_version = "4.0.0"
+environment = "production"
+# Jaeger tracing
+jaeger_endpoint = "http://jaeger-collector:14268/api/traces"
+trace_sampling_rate = 0.1
+# Metric exporters
+otlp_endpoint = "http://otel-collector:4317"
+
+[scaling]
+# Auto-scaling configuration
+enable_auto_scaling = true
+min_replicas = 2
+max_replicas = 10
+target_cpu_percent = 70
+target_memory_percent = 80
+scale_up_cooldown = 300
+scale_down_cooldown = 600
+# Connection pooling
+fhe_pool_size = 8
+connection_pool_max_idle = 5
+connection_pool_idle_timeout = 300
+
+[performance]
+# Performance optimizations
+enable_parallel_processing = true
+worker_threads = 0  # 0 = auto-detect CPU cores
+max_blocking_threads = 512
+thread_stack_size = 2097152  # 2MB
+# Memory settings
+memory_pool_size = "2GB"
+gc_threshold = "1GB"
+enable_memory_mapping = true
+
+[deployment]
+# Global deployment settings
+region = "us-east-1"
+availability_zone = "us-east-1a"
+environment = "production"
+# Feature flags
+enable_experimental_features = false
+enable_debug_endpoints = false
+enable_admin_api = false
+
+[alerts]
+# Alerting thresholds
+error_rate_threshold = 0.05  # 5%
+response_time_p95_threshold = 1000  # ms
+memory_usage_threshold = 0.85  # 85%
+cpu_usage_threshold = 0.80  # 80%
+disk_usage_threshold = 0.90  # 90%
+
+[backup]
+# Data backup configuration
+enable_backup = true
+backup_interval = 3600  # 1 hour
+backup_retention_days = 30
+backup_location = "s3://fhe-proxy-backups"
+compression_enabled = true
+encryption_enabled = true

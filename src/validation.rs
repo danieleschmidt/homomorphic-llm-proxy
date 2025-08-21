@@ -150,10 +150,10 @@ impl ValidationFramework {
         }
 
         // Pattern validation
-        if let Some(ref pattern_str) = rule.pattern {
-            match regex::Regex::new(pattern_str) {
-                Ok(pattern) => {
-                    if !pattern.is_match(input) {
+        if let Some(pattern) = &rule.pattern {
+            match regex::Regex::new(pattern) {
+                Ok(regex) => {
+                    if !regex.is_match(input) {
                         errors.push(ValidationError {
                             field: field.to_string(),
                             error_type: "pattern".to_string(),
@@ -162,13 +162,13 @@ impl ValidationFramework {
                         });
                     }
                 }
-                Err(_) => {
-                    warnings.push(format!("Invalid regex pattern for field: {}", field));
+                Err(e) => {
+                    warnings.push(format!("Invalid regex pattern for field '{}': {}", field, e));
                 }
             }
         }
 
-        // Custom validation
+        // Custom validator
         if let Some(validator) = rule.custom_validator {
             if !validator(input) {
                 errors.push(ValidationError {
@@ -180,90 +180,164 @@ impl ValidationFramework {
             }
         }
 
-        // Input sanitization
-        let sanitized_input = self.sanitize_input(input);
+        // Security checks - blocked patterns
+        for blocked_pattern in &self.blocked_patterns {
+            if blocked_pattern.is_match(input) {
+                errors.push(ValidationError {
+                    field: field.to_string(),
+                    error_type: "security".to_string(),
+                    message: format!("Field '{}' contains blocked content", field),
+                    severity: ErrorSeverity::Critical,
+                });
+            }
+        }
+
+        // Sanitize input
+        let sanitized_input = if errors.is_empty() {
+            Some(self.sanitize_input(input))
+        } else {
+            None
+        };
 
         ValidationReport {
             is_valid: errors.is_empty(),
             errors,
             warnings,
-            sanitized_input: Some(sanitized_input),
+            sanitized_input,
         }
     }
 
-    /// Advanced input sanitization with security focus
-    pub fn sanitize_input(&self, input: &str) -> String {
-        // Remove control characters except whitespace
-        let mut sanitized: String = input
+    /// Sanitize input by removing/replacing dangerous characters
+    fn sanitize_input(&self, input: &str) -> String {
+        input
             .chars()
-            .filter(|c| !c.is_control() || c.is_whitespace())
-            .collect();
-
-        // Remove null bytes and other dangerous characters
-        sanitized = sanitized.replace('\0', "");
-        sanitized = sanitized.replace('\u{FEFF}', ""); // BOM
-
-        // Normalize whitespace
-        let normalized = sanitized
-            .split_whitespace()
-            .collect::<Vec<&str>>()
-            .join(" ");
-
-        // Trim and limit length
-        let final_result = normalized
-            .trim()
-            .chars()
-            .take(self.max_input_size)
-            .collect();
-
-        final_result
+            .filter(|c| {
+                c.is_ascii()
+                && (!c.is_control() || c.is_whitespace())
+                && *c != '\0' // Remove null bytes
+                && !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F')
+            })
+            .collect()
     }
 
-    /// Validate FHE parameters for security and compatibility
-    pub fn validate_fhe_params(&self, params: &FheParams) -> Result<()> {
-        // Check polynomial modulus degree
+    /// Validate FHE parameters
+    pub fn validate_fhe_params(&self, params: &FheParams) -> ValidationReport {
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Validate poly modulus degree
+        if params.poly_modulus_degree == 0 {
+            errors.push(ValidationError {
+                field: "poly_modulus_degree".to_string(),
+                error_type: "invalid_value".to_string(),
+                message: "Polynomial modulus degree cannot be zero".to_string(),
+                severity: ErrorSeverity::Error,
+            });
+        }
+
         if !params.poly_modulus_degree.is_power_of_two() {
-            return Err(Error::Validation(
-                "Polynomial modulus degree must be a power of 2".to_string(),
-            ));
+            warnings.push("Polynomial modulus degree should be a power of two for optimal performance".to_string());
         }
 
-        if params.poly_modulus_degree < 1024 || params.poly_modulus_degree > 32768 {
-            return Err(Error::Validation(
-                "Polynomial modulus degree must be between 1024 and 32768".to_string(),
-            ));
+        // Validate security level
+        if params.security_level < 80 {
+            errors.push(ValidationError {
+                field: "security_level".to_string(),
+                error_type: "insecure".to_string(),
+                message: format!("Security level {} is too low (minimum 80 bits)", params.security_level),
+                severity: ErrorSeverity::Critical,
+            });
         }
 
-        // Check coefficient modulus
+        if params.security_level > 192 {
+            warnings.push(format!("Security level {} may impact performance significantly", params.security_level));
+        }
+
+        // Validate coefficient modulus
         if params.coeff_modulus_bits.is_empty() {
-            return Err(Error::Validation(
-                "Coefficient modulus bits cannot be empty".to_string(),
-            ));
+            errors.push(ValidationError {
+                field: "coeff_modulus_bits".to_string(),
+                error_type: "required".to_string(),
+                message: "Coefficient modulus bits cannot be empty".to_string(),
+                severity: ErrorSeverity::Error,
+            });
         }
 
-        let total_bits: u64 = params.coeff_modulus_bits.iter().sum();
-        if total_bits > 880 {
-            // Conservative limit for 128-bit security
-            return Err(Error::Validation(
-                "Total coefficient modulus bits too high for security level".to_string(),
-            ));
+        ValidationReport {
+            is_valid: errors.is_empty(),
+            errors,
+            warnings,
+            sanitized_input: None,
+        }
+    }
+
+    /// Validate base64 encoded ciphertext
+    pub fn validate_ciphertext_data(&self, data: &str) -> ValidationReport {
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Check if it's valid base64
+        match base64::prelude::BASE64_STANDARD.decode(data) {
+            Ok(decoded) => {
+                if decoded.len() < 32 {
+                    warnings.push("Ciphertext data seems unusually small".to_string());
+                }
+                if decoded.len() > 10_000_000 { // 10MB limit
+                    errors.push(ValidationError {
+                        field: "ciphertext_data".to_string(),
+                        error_type: "too_large".to_string(),
+                        message: "Ciphertext data exceeds maximum size (10MB)".to_string(),
+                        severity: ErrorSeverity::Error,
+                    });
+                }
+            }
+            Err(e) => {
+                errors.push(ValidationError {
+                    field: "ciphertext_data".to_string(),
+                    error_type: "invalid_encoding".to_string(),
+                    message: format!("Invalid base64 encoding: {}", e),
+                    severity: ErrorSeverity::Error,
+                });
+            }
         }
 
-        // Check scale bits
-        if params.scale_bits < 20 || params.scale_bits > 60 {
-            return Err(Error::Validation(
-                "Scale bits must be between 20 and 60".to_string(),
-            ));
+        ValidationReport {
+            is_valid: errors.is_empty(),
+            errors,
+            warnings,
+            sanitized_input: None,
         }
+    }
 
-        // Check security level
-        if ![128, 192].contains(&params.security_level) {
-            return Err(Error::Validation(
-                "Security level must be 128 or 192".to_string(),
-            ));
+    /// Validate UUID string
+    pub fn validate_uuid(&self, uuid_str: &str) -> ValidationReport {
+        let mut errors = Vec::new();
+        
+        match Uuid::parse_str(uuid_str) {
+            Ok(_) => {
+                ValidationReport {
+                    is_valid: true,
+                    errors,
+                    warnings: vec![],
+                    sanitized_input: Some(uuid_str.to_lowercase()),
+                }
+            }
+            Err(e) => {
+                errors.push(ValidationError {
+                    field: "uuid".to_string(),
+                    error_type: "invalid_format".to_string(),
+                    message: format!("Invalid UUID format: {}", e),
+                    severity: ErrorSeverity::Error,
+                });
+                
+                ValidationReport {
+                    is_valid: false,
+                    errors,
+                    warnings: vec![],
+                    sanitized_input: None,
+                }
+            }
         }
-
-        Ok(())
     }
 
     /// Detect potentially malicious patterns in input
@@ -273,18 +347,8 @@ impl ValidationFramework {
 
         // SQL injection patterns
         let sql_patterns = [
-            "select ",
-            "union ",
-            "insert ",
-            "delete ",
-            "drop ",
-            "exec ",
-            "script",
-            "alter ",
-            "create ",
-            "truncate ",
-            "grant ",
-            "revoke ",
+            "select ", "union ", "insert ", "delete ", "drop ", "exec ", "script",
+            "alter ", "create ", "truncate ", "grant ", "revoke ",
         ];
 
         for pattern in &sql_patterns {
@@ -295,16 +359,8 @@ impl ValidationFramework {
 
         // XSS patterns
         let xss_patterns = [
-            "<script",
-            "javascript:",
-            "onload=",
-            "onerror=",
-            "onclick=",
-            "onmouseover=",
-            "onfocus=",
-            "onblur=",
-            "onchange=",
-            "onsubmit=",
+            "<script", "javascript:", "onload=", "onerror=", "onclick=",
+            "onmouseover=", "onfocus=", "onblur=", "onchange=", "onsubmit=",
         ];
 
         for pattern in &xss_patterns {
@@ -332,46 +388,6 @@ impl ValidationFramework {
         }
 
         threats
-    }
-
-    /// Validate UUID format and version
-    pub fn validate_uuid(&self, uuid_str: &str) -> Result<Uuid> {
-        let uuid = uuid_str
-            .parse::<Uuid>()
-            .map_err(|_| Error::Validation(format!("Invalid UUID format: {}", uuid_str)))?;
-
-        // Check UUID version (should be version 4 for random UUIDs)
-        if uuid.get_version_num() != 4 {
-            log::warn!("UUID {} is not version 4 (random)", uuid_str);
-        }
-
-        Ok(uuid)
-    }
-
-    /// Validate base64 encoded data with size limits
-    pub fn validate_base64(&self, data: &str, max_decoded_size: usize) -> Result<Vec<u8>> {
-        // Check base64 format
-        if !data
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=')
-        {
-            return Err(Error::Validation("Invalid base64 characters".to_string()));
-        }
-
-        // Decode and check size
-        let decoded = base64::prelude::BASE64_STANDARD
-            .decode(data)
-            .map_err(|e| Error::Validation(format!("Base64 decode error: {}", e)))?;
-
-        if decoded.len() > max_decoded_size {
-            return Err(Error::Validation(format!(
-                "Decoded data size {} exceeds limit {}",
-                decoded.len(),
-                max_decoded_size
-            )));
-        }
-
-        Ok(decoded)
     }
 }
 
@@ -488,11 +504,13 @@ mod tests {
 
         // Valid UUID
         let valid_uuid = "550e8400-e29b-41d4-a716-446655440000";
-        assert!(framework.validate_uuid(valid_uuid).is_ok());
+        let report = framework.validate_uuid(valid_uuid);
+        assert!(report.is_valid);
 
         // Invalid UUID
         let invalid_uuid = "not-a-uuid";
-        assert!(framework.validate_uuid(invalid_uuid).is_err());
+        let report = framework.validate_uuid(invalid_uuid);
+        assert!(!report.is_valid);
     }
 
     #[test]
@@ -501,10 +519,12 @@ mod tests {
 
         // Valid base64
         let valid_b64 = "SGVsbG8gV29ybGQ=";
-        assert!(framework.validate_base64(valid_b64, 1000).is_ok());
+        let report = framework.validate_ciphertext_data(valid_b64);
+        assert!(report.is_valid);
 
         // Invalid base64
         let invalid_b64 = "This is not base64!";
-        assert!(framework.validate_base64(invalid_b64, 1000).is_err());
+        let report = framework.validate_ciphertext_data(invalid_b64);
+        assert!(!report.is_valid);
     }
 }
