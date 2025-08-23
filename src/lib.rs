@@ -10,9 +10,11 @@ pub mod i18n;
 pub mod middleware;
 pub mod monitoring;
 pub mod performance;
+pub mod performance_optimized;
 pub mod proxy;
 pub mod scaling;
 pub mod security;
+pub mod security_enhanced;
 pub mod validation;
 
 pub use config::Config;
