@@ -1,0 +1,547 @@
+# Production Deployment Configuration for Homomorphic LLM Proxy v4.0
+# Global-First Multi-Region Setup with Enterprise Features
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homomorphic-llm-proxy
+  labels:
+    app: homomorphic-llm-proxy
+    version: "4.0"
+    environment: production
+    security.compliance: gdpr-ccpa-pdpa
+---
+# ConfigMap for production configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-config
+  namespace: homomorphic-llm-proxy
+data:
+  config.toml: |
+    [server]
+    host = "0.0.0.0"
+    port = 8443
+    workers = 16
+    max_connections = 10000
+    request_timeout = 300
+    enable_tls = true
+    tls_cert_path = "/etc/certs/tls.crt"
+    tls_key_path = "/etc/certs/tls.key"
+
+    [fhe]
+    poly_modulus_degree = 16384
+    coeff_modulus_bits = [60, 40, 40, 60]
+    scale_bits = 40
+    security_level = 128
+    enable_gpu_acceleration = false
+    batch_size = 64
+    cache_size = 1000
+
+    [security]
+    enable_rate_limiting = true
+    max_requests_per_minute = 1000
+    enable_ip_filtering = true
+    allowed_origins = ["https://*.yourcompany.com"]
+    api_key_required = true
+    enable_threat_detection = true
+    audit_log_level = "info"
+
+    [performance]
+    enable_caching = true
+    cache_ttl = 3600
+    enable_compression = true
+    compression_level = 6
+    enable_metrics = true
+    metrics_endpoint = "/metrics"
+
+    [monitoring]
+    enable_health_checks = true
+    health_check_interval = 30
+    prometheus_endpoint = "/metrics"
+    jaeger_endpoint = "http://jaeger-collector:14268/api/traces"
+
+    [compliance]
+    enable_data_retention = true
+    data_retention_days = 90
+    enable_audit_trail = true
+    enable_encryption_at_rest = true
+    enable_data_anonymization = true
+
+    [i18n]
+    default_language = "en"
+    supported_languages = ["en", "es", "fr", "de", "ja", "zh"]
+    translations_path = "/app/translations"
+
+---
+# Secret for TLS certificates and API keys
+apiVersion: v1
+kind: Secret
+metadata:
+  name: proxy-secrets
+  namespace: homomorphic-llm-proxy
+type: Opaque
+data:
+  # Base64 encoded values (replace with actual certificates)
+  tls.crt: LS0tLS1CRUdJTi... # TLS Certificate
+  tls.key: LS0tLS1CRUdJTi... # TLS Private Key
+  api-key: YWRtaW4tc2VjcmV0... # Admin API Key
+  jwt-secret: and0LXNlY3JldA... # JWT Signing Secret
+
+---
+# Deployment for the main application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homomorphic-llm-proxy
+  namespace: homomorphic-llm-proxy
+  labels:
+    app: homomorphic-llm-proxy
+    version: "4.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: homomorphic-llm-proxy
+  template:
+    metadata:
+      labels:
+        app: homomorphic-llm-proxy
+        version: "4.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8443"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: homomorphic-llm-proxy
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: proxy
+        image: homomorphic-llm-proxy:4.0-production
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: CONFIG_PATH
+          value: "/app/config/config.toml"
+        - name: JAEGER_SERVICE_NAME
+          value: "homomorphic-llm-proxy"
+        - name: JAEGER_AGENT_HOST
+          value: "jaeger-agent"
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: certs
+          mountPath: /etc/certs
+          readOnly: true
+        - name: translations
+          mountPath: /app/translations
+          readOnly: true
+        - name: cache
+          mountPath: /app/cache
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      volumes:
+      - name: config
+        configMap:
+          name: proxy-config
+      - name: certs
+        secret:
+          secretName: proxy-secrets
+          items:
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+      - name: translations
+        configMap:
+          name: translations-config
+      - name: cache
+        emptyDir:
+          sizeLimit: 10Gi
+
+---
+# Service for load balancing
+apiVersion: v1
+kind: Service
+metadata:
+  name: homomorphic-llm-proxy-service
+  namespace: homomorphic-llm-proxy
+  labels:
+    app: homomorphic-llm-proxy
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456789:certificate/cert-id"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "ssl"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+    targetPort: 8443
+    protocol: TCP
+    name: https
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: homomorphic-llm-proxy
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: homomorphic-llm-proxy-hpa
+  namespace: homomorphic-llm-proxy
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: homomorphic-llm-proxy
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: homomorphic-llm-proxy-pdb
+  namespace: homomorphic-llm-proxy
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: homomorphic-llm-proxy
+
+---
+# Network Policy for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: homomorphic-llm-proxy-netpol
+  namespace: homomorphic-llm-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app: homomorphic-llm-proxy
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app: nginx-ingress
+    ports:
+    - protocol: TCP
+      port: 8443
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+    - protocol: UDP
+      port: 53
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: homomorphic-llm-proxy
+  namespace: homomorphic-llm-proxy
+
+---
+# RBAC Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: homomorphic-llm-proxy-role
+  namespace: homomorphic-llm-proxy
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+# RBAC RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: homomorphic-llm-proxy-rolebinding
+  namespace: homomorphic-llm-proxy
+subjects:
+- kind: ServiceAccount
+  name: homomorphic-llm-proxy
+  namespace: homomorphic-llm-proxy
+roleRef:
+  kind: Role
+  name: homomorphic-llm-proxy-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Translations ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: translations-config
+  namespace: homomorphic-llm-proxy
+data:
+  en.json: |
+    {
+      "app": {
+        "name": "Homomorphic LLM Proxy",
+        "description": "Privacy-preserving LLM inference proxy with FHE"
+      },
+      "errors": {
+        "validation": "Input validation failed",
+        "fhe": "Homomorphic encryption error",
+        "auth": "Authentication failed",
+        "rate_limit": "Rate limit exceeded"
+      },
+      "messages": {
+        "processing": "Processing request...",
+        "completed": "Request completed successfully"
+      }
+    }
+  es.json: |
+    {
+      "app": {
+        "name": "Proxy de LLM Homomórfico",
+        "description": "Proxy de inferencia LLM que preserva la privacidad con FHE"
+      },
+      "errors": {
+        "validation": "La validación de entrada falló",
+        "fhe": "Error de cifrado homomórfico",
+        "auth": "La autenticación falló",
+        "rate_limit": "Límite de velocidad excedido"
+      },
+      "messages": {
+        "processing": "Procesando solicitud...",
+        "completed": "Solicitud completada exitosamente"
+      }
+    }
+  fr.json: |
+    {
+      "app": {
+        "name": "Proxy LLM Homomorphe",
+        "description": "Proxy d'inférence LLM préservant la vie privée avec FHE"
+      },
+      "errors": {
+        "validation": "Échec de la validation d'entrée",
+        "fhe": "Erreur de chiffrement homomorphe",
+        "auth": "Échec de l'authentification",
+        "rate_limit": "Limite de débit dépassée"
+      },
+      "messages": {
+        "processing": "Traitement de la demande...",
+        "completed": "Demande traitée avec succès"
+      }
+    }
+  de.json: |
+    {
+      "app": {
+        "name": "Homomorphic LLM Proxy",
+        "description": "Datenschutzwahrende LLM-Inferenz-Proxy mit FHE"
+      },
+      "errors": {
+        "validation": "Eingabevalidierung fehlgeschlagen",
+        "fhe": "Homomorphic Verschlüsselungsfehler",
+        "auth": "Authentifizierung fehlgeschlagen",
+        "rate_limit": "Rate-Limit überschritten"
+      },
+      "messages": {
+        "processing": "Verarbeite Anfrage...",
+        "completed": "Anfrage erfolgreich abgeschlossen"
+      }
+    }
+  ja.json: |
+    {
+      "app": {
+        "name": "準同型LLMプロキシ",
+        "description": "FHEによるプライバシー保護LLM推論プロキシ"
+      },
+      "errors": {
+        "validation": "入力検証に失敗しました",
+        "fhe": "準同型暗号化エラー",
+        "auth": "認証に失敗しました",
+        "rate_limit": "レート制限を超過しました"
+      },
+      "messages": {
+        "processing": "リクエストを処理中...",
+        "completed": "リクエストが正常に完了しました"
+      }
+    }
+  zh.json: |
+    {
+      "app": {
+        "name": "同态LLM代理",
+        "description": "基于FHE的隐私保护LLM推理代理"
+      },
+      "errors": {
+        "validation": "输入验证失败",
+        "fhe": "同态加密错误",
+        "auth": "身份验证失败",
+        "rate_limit": "超出速率限制"
+      },
+      "messages": {
+        "processing": "正在处理请求...",
+        "completed": "请求已成功完成"
+      }
+    }
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homomorphic-llm-proxy-ingress
+  namespace: homomorphic-llm-proxy
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+  - hosts:
+    - fhe-proxy.yourcompany.com
+    - fhe-proxy-eu.yourcompany.com
+    - fhe-proxy-asia.yourcompany.com
+    secretName: fhe-proxy-tls
+  rules:
+  - host: fhe-proxy.yourcompany.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: homomorphic-llm-proxy-service
+            port:
+              number: 443
+  - host: fhe-proxy-eu.yourcompany.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: homomorphic-llm-proxy-service
+            port:
+              number: 443
+  - host: fhe-proxy-asia.yourcompany.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: homomorphic-llm-proxy-service
+            port:
+              number: 443

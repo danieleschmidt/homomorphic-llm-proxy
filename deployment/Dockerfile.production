@@ -1,0 +1,105 @@
+# Multi-stage production Dockerfile for Homomorphic LLM Proxy v4.0
+# Optimized for security, performance, and minimal attack surface
+
+ARG RUST_VERSION=1.75
+
+# Build stage
+FROM rust:${RUST_VERSION}-slim as builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    build-essential \
+    cmake \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user and directory
+RUN useradd -m -u 1000 appuser
+WORKDIR /app
+
+# Copy dependency files
+COPY Cargo.toml Cargo.lock ./
+
+# Create a dummy main to cache dependencies
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    echo '[lib]\nname = "homomorphic_llm_proxy"\npath = "src/lib.rs"' >> Cargo.toml
+
+# Build dependencies (cached layer)
+RUN cargo build --release --features production && \
+    rm -rf src
+
+# Copy source code
+COPY src ./src
+COPY benches ./benches
+COPY tests ./tests
+
+# Build the actual application
+RUN cargo build --release --features production && \
+    strip target/release/homomorphic-llm-proxy
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    curl \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create app user and directories
+RUN useradd -m -u 1000 -s /bin/bash appuser && \
+    mkdir -p /app/{config,certs,translations,cache,logs} && \
+    chown -R appuser:appuser /app
+
+# Copy binary from builder
+COPY --from=builder /app/target/release/homomorphic-llm-proxy /app/homomorphic-llm-proxy
+COPY --chown=appuser:appuser config/production.toml /app/config/
+COPY --chown=appuser:appuser translations/ /app/translations/
+
+# Security enhancements
+RUN chmod +x /app/homomorphic-llm-proxy && \
+    chmod 755 /app && \
+    chmod -R 644 /app/config/ && \
+    chmod -R 644 /app/translations/ && \
+    chmod 700 /app/cache && \
+    chmod 700 /app/logs
+
+# Switch to non-root user
+USER appuser
+WORKDIR /app
+
+# Set environment variables
+ENV RUST_LOG=info \
+    CONFIG_PATH=/app/config/production.toml \
+    RUST_BACKTRACE=1 \
+    TZ=UTC
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose ports
+EXPOSE 8443 8080 9090
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Run the application
+CMD ["./homomorphic-llm-proxy"]
+
+# Metadata
+LABEL \
+    org.opencontainers.image.title="Homomorphic LLM Proxy" \
+    org.opencontainers.image.description="Privacy-preserving LLM inference proxy with FHE" \
+    org.opencontainers.image.version="4.0" \
+    org.opencontainers.image.vendor="Terragon Labs" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.source="https://github.com/terragon/homomorphic-llm-proxy" \
+    org.opencontainers.image.documentation="https://github.com/terragon/homomorphic-llm-proxy/blob/main/README.md"
