@@ -514,10 +514,7 @@ impl AdaptiveRateLimiter {
         let blocked_ips = self
             .suspicious_ips
             .values()
-            .filter(|s| {
-                s.blocked_until
-                    .is_some_and(|until| Instant::now() < until)
-            })
+            .filter(|s| s.blocked_until.is_some_and(|until| Instant::now() < until))
             .count();
 
         let high_risk_ips = self

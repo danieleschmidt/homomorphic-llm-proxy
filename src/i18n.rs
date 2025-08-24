@@ -167,9 +167,12 @@ impl I18n {
     }
 
     /// Load translations from locale directory
-    pub fn load_translations<P: AsRef<Path>>(mut self, locale_dir: P) -> crate::error::Result<Self> {
+    pub fn load_translations<P: AsRef<Path>>(
+        mut self,
+        locale_dir: P,
+    ) -> crate::error::Result<Self> {
         let locale_path = locale_dir.as_ref();
-        
+
         for &language in &[
             Language::English,
             Language::Spanish,
@@ -179,16 +182,26 @@ impl I18n {
             Language::Japanese,
         ] {
             let file_path = locale_path.join(format!("{}.json", language.code()));
-            
+
             if file_path.exists() {
-                let content = fs::read_to_string(&file_path)
-                    .map_err(|e| crate::error::Error::Config(format!("Failed to read locale file {}: {}", file_path.display(), e)))?;
-                
-                let translations: Translations = serde_json::from_str(&content)
-                    .map_err(|e| crate::error::Error::Config(format!("Failed to parse locale file {}: {}", file_path.display(), e)))?;
-                
+                let content = fs::read_to_string(&file_path).map_err(|e| {
+                    crate::error::Error::Config(format!(
+                        "Failed to read locale file {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+
+                let translations: Translations = serde_json::from_str(&content).map_err(|e| {
+                    crate::error::Error::Config(format!(
+                        "Failed to parse locale file {}: {}",
+                        file_path.display(),
+                        e
+                    ))
+                })?;
+
                 self.translations.insert(language, translations);
-                
+
                 log::info!("Loaded translations for language: {}", language.code());
             } else {
                 log::warn!("Translation file not found: {}", file_path.display());
@@ -196,10 +209,15 @@ impl I18n {
         }
 
         if self.translations.is_empty() {
-            return Err(crate::error::Error::Config("No translation files loaded".to_string()));
+            return Err(crate::error::Error::Config(
+                "No translation files loaded".to_string(),
+            ));
         }
 
-        log::info!("Internationalization initialized with {} languages", self.translations.len());
+        log::info!(
+            "Internationalization initialized with {} languages",
+            self.translations.len()
+        );
         Ok(self)
     }
 
@@ -219,7 +237,7 @@ impl I18n {
     /// Translate a specific error message
     pub fn translate_error(&self, language: Language, error_key: &str) -> String {
         let translations = self.get_translations_with_fallback(language);
-        
+
         match error_key {
             "validation" => translations.errors.validation.clone(),
             "encryption" => translations.errors.encryption.clone(),
@@ -241,7 +259,7 @@ impl I18n {
     /// Translate a specific message
     pub fn translate_message(&self, language: Language, message_key: &str) -> String {
         let translations = self.get_translations_with_fallback(language);
-        
+
         match message_key {
             "startup" => translations.messages.startup.clone(),
             "shutdown" => translations.messages.shutdown.clone(),
@@ -260,12 +278,18 @@ impl I18n {
 
     /// Get app name in specified language
     pub fn get_app_name(&self, language: Language) -> String {
-        self.get_translations_with_fallback(language).app.name.clone()
+        self.get_translations_with_fallback(language)
+            .app
+            .name
+            .clone()
     }
 
     /// Get app description in specified language
     pub fn get_app_description(&self, language: Language) -> String {
-        self.get_translations_with_fallback(language).app.description.clone()
+        self.get_translations_with_fallback(language)
+            .app
+            .description
+            .clone()
     }
 
     /// Get supported languages
@@ -320,10 +344,7 @@ mod tests {
             Language::from_accept_language("fr-FR,fr;q=0.9,en;q=0.8"),
             Language::French
         );
-        assert_eq!(
-            Language::from_accept_language("invalid"),
-            Language::English
-        );
+        assert_eq!(Language::from_accept_language("invalid"), Language::English);
     }
 
     #[test]

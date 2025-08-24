@@ -5,8 +5,10 @@ use crate::error::{Error, Result};
 use crate::fhe::{Ciphertext, FheEngine, FheParams};
 use crate::middleware::{MetricsCollector, PrivacyBudgetTracker, RateLimiter};
 use crate::monitoring::{MonitoringService, PerformanceProfiler, StructuredLogger};
-use crate::scaling::{AutoScaler, BatchProcessor, CiphertextCache, CircuitBreaker, FheConnectionPool};
-use crate::performance::{PerformanceCache, ConnectionPoolShard, CacheConfig, EvictionStrategy};
+use crate::performance::{CacheConfig, ConnectionPoolShard, EvictionStrategy, PerformanceCache};
+use crate::scaling::{
+    AutoScaler, BatchProcessor, CiphertextCache, CircuitBreaker, FheConnectionPool,
+};
 use axum::middleware::{from_fn, from_fn_with_state};
 use axum::{
     extract::{Path, State},
@@ -258,13 +260,13 @@ impl ProxyServer {
             scale_bits: config.encryption.scale_bits,
             security_level: 128,
         };
-        
+
         let fhe_pool = FheConnectionPool::new(
             config.scaling.connection_pool_size,
             config.scaling.max_concurrent_requests as usize,
             fhe_params_for_pool.clone(),
         )?;
-        
+
         let auto_scaler = AutoScaler::new(
             config.scaling.target_cpu_utilization,
             config.scaling.min_instances as usize,
@@ -272,23 +274,19 @@ impl ProxyServer {
             config.scaling.scale_up_threshold as usize,
             std::time::Duration::from_secs(config.scaling.cooldown_period_seconds),
         );
-        
+
         let batch_processor = BatchProcessor::new(
             config.performance.batch_size,
             std::time::Duration::from_millis(config.performance.batch_timeout_ms),
         );
-        
+
         let advanced_cache = CiphertextCache::new(
             (config.performance.cache_size_mb * 1024 * 1024) as usize,
             std::time::Duration::from_secs(config.performance.cache_ttl_seconds),
         );
-        
-        let circuit_breaker = CircuitBreaker::new(
-            50,
-            30,
-            std::time::Duration::from_secs(60),
-        );
-        
+
+        let circuit_breaker = CircuitBreaker::new(50, 30, std::time::Duration::from_secs(60));
+
         let performance_cache = PerformanceCache::new(CacheConfig {
             l1_max_size: (config.performance.cache_size_mb * 1024 * 1024 / 4) as usize,
             l2_max_size: (config.performance.cache_size_mb * 1024 * 1024 / 2) as usize,
@@ -299,7 +297,7 @@ impl ProxyServer {
             compression_enabled: config.performance.compression_enabled,
             encryption_enabled: true,
         });
-        
+
         let connection_manager = ConnectionPoolShard {
             id: 0,
             engines: Vec::new(),
