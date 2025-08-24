@@ -9,11 +9,14 @@
 
 use crate::error::{Error, Result};
 use crate::fhe::{Ciphertext, FheEngine, FheParams};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, RwLock, atomic::{AtomicU64, AtomicUsize, Ordering}};
+use std::sync::{
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+    Arc, RwLock,
+};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Advanced performance manager
@@ -277,8 +280,8 @@ pub struct GcScheduler {
 
 #[derive(Debug, Clone)]
 pub struct PressureThresholds {
-    pub memory_pressure: f64, // 0.0 to 1.0
-    pub allocation_rate: f64, // allocations per second
+    pub memory_pressure: f64,     // 0.0 to 1.0
+    pub allocation_rate: f64,     // allocations per second
     pub fragmentation_ratio: f64, // 0.0 to 1.0
 }
 
@@ -553,7 +556,7 @@ impl PerformanceManager {
     /// Process request with full optimization
     pub async fn process_optimized(&self, request: OptimizedRequest) -> Result<OptimizedResponse> {
         let start_time = Instant::now();
-        
+
         // Check cache first
         if let Some(cached_result) = self.cache_system.get(&request.cache_key).await? {
             self.metrics.record_cache_hit();
@@ -567,13 +570,15 @@ impl PerformanceManager {
 
         // Select optimal engine
         let engine_instance = self.load_balancer.select_engine(&request).await?;
-        
+
         // Queue in pipeline
         let work_item = self.pipeline.create_work_item(request.clone()).await?;
         let result = self.pipeline.process_item(work_item).await?;
 
         // Cache result for future use
-        self.cache_system.store(&request.cache_key, result.clone()).await?;
+        self.cache_system
+            .store(&request.cache_key, result.clone())
+            .await?;
 
         // Update metrics
         self.metrics.record_request_completed(start_time.elapsed());
@@ -617,7 +622,7 @@ impl PerformanceManager {
         }
 
         let total_improvement = self.calculate_improvement(&optimizations);
-        
+
         Ok(OptimizationReport {
             optimizations,
             total_improvement,
@@ -626,7 +631,10 @@ impl PerformanceManager {
     }
 
     fn calculate_improvement(&self, optimizations: &[OptimizationResult]) -> f64 {
-        optimizations.iter().map(|opt| opt.improvement_percentage).sum()
+        optimizations
+            .iter()
+            .map(|opt| opt.improvement_percentage)
+            .sum()
     }
 }
 

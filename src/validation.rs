@@ -163,7 +163,10 @@ impl ValidationFramework {
                     }
                 }
                 Err(e) => {
-                    warnings.push(format!("Invalid regex pattern for field '{}': {}", field, e));
+                    warnings.push(format!(
+                        "Invalid regex pattern for field '{}': {}",
+                        field, e
+                    ));
                 }
             }
         }
@@ -236,7 +239,10 @@ impl ValidationFramework {
         }
 
         if !params.poly_modulus_degree.is_power_of_two() {
-            warnings.push("Polynomial modulus degree should be a power of two for optimal performance".to_string());
+            warnings.push(
+                "Polynomial modulus degree should be a power of two for optimal performance"
+                    .to_string(),
+            );
         }
 
         // Validate security level
@@ -244,13 +250,19 @@ impl ValidationFramework {
             errors.push(ValidationError {
                 field: "security_level".to_string(),
                 error_type: "insecure".to_string(),
-                message: format!("Security level {} is too low (minimum 80 bits)", params.security_level),
+                message: format!(
+                    "Security level {} is too low (minimum 80 bits)",
+                    params.security_level
+                ),
                 severity: ErrorSeverity::Critical,
             });
         }
 
         if params.security_level > 192 {
-            warnings.push(format!("Security level {} may impact performance significantly", params.security_level));
+            warnings.push(format!(
+                "Security level {} may impact performance significantly",
+                params.security_level
+            ));
         }
 
         // Validate coefficient modulus
@@ -276,13 +288,30 @@ impl ValidationFramework {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
 
+        // Check for empty input
+        if data.is_empty() {
+            errors.push(ValidationError {
+                field: "ciphertext_data".to_string(),
+                error_type: "empty_input".to_string(),
+                message: "Ciphertext data cannot be empty".to_string(),
+                severity: ErrorSeverity::Error,
+            });
+            return ValidationReport {
+                is_valid: false,
+                errors,
+                warnings,
+                sanitized_input: None,
+            };
+        }
+
         // Check if it's valid base64
         match base64::prelude::BASE64_STANDARD.decode(data) {
             Ok(decoded) => {
                 if decoded.len() < 32 {
                     warnings.push("Ciphertext data seems unusually small".to_string());
                 }
-                if decoded.len() > 10_000_000 { // 10MB limit
+                if decoded.len() > 10_000_000 {
+                    // 10MB limit
                     errors.push(ValidationError {
                         field: "ciphertext_data".to_string(),
                         error_type: "too_large".to_string(),
@@ -312,16 +341,14 @@ impl ValidationFramework {
     /// Validate UUID string
     pub fn validate_uuid(&self, uuid_str: &str) -> ValidationReport {
         let mut errors = Vec::new();
-        
+
         match Uuid::parse_str(uuid_str) {
-            Ok(_) => {
-                ValidationReport {
-                    is_valid: true,
-                    errors,
-                    warnings: vec![],
-                    sanitized_input: Some(uuid_str.to_lowercase()),
-                }
-            }
+            Ok(_) => ValidationReport {
+                is_valid: true,
+                errors,
+                warnings: vec![],
+                sanitized_input: Some(uuid_str.to_lowercase()),
+            },
             Err(e) => {
                 errors.push(ValidationError {
                     field: "uuid".to_string(),
@@ -329,7 +356,7 @@ impl ValidationFramework {
                     message: format!("Invalid UUID format: {}", e),
                     severity: ErrorSeverity::Error,
                 });
-                
+
                 ValidationReport {
                     is_valid: false,
                     errors,
@@ -347,8 +374,18 @@ impl ValidationFramework {
 
         // SQL injection patterns
         let sql_patterns = [
-            "select ", "union ", "insert ", "delete ", "drop ", "exec ", "script",
-            "alter ", "create ", "truncate ", "grant ", "revoke ",
+            "select ",
+            "union ",
+            "insert ",
+            "delete ",
+            "drop ",
+            "exec ",
+            "script",
+            "alter ",
+            "create ",
+            "truncate ",
+            "grant ",
+            "revoke ",
         ];
 
         for pattern in &sql_patterns {
@@ -359,8 +396,16 @@ impl ValidationFramework {
 
         // XSS patterns
         let xss_patterns = [
-            "<script", "javascript:", "onload=", "onerror=", "onclick=",
-            "onmouseover=", "onfocus=", "onblur=", "onchange=", "onsubmit=",
+            "<script",
+            "javascript:",
+            "onload=",
+            "onerror=",
+            "onclick=",
+            "onmouseover=",
+            "onfocus=",
+            "onblur=",
+            "onchange=",
+            "onsubmit=",
         ];
 
         for pattern in &xss_patterns {

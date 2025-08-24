@@ -5,10 +5,10 @@
 
 use crate::error::{Error, Result};
 use crate::fhe::{Ciphertext, FheParams};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Advanced threat detection system
@@ -195,7 +195,10 @@ impl ThreatDetectionEngine {
         // XSS patterns
         attack_patterns.push(AttackPattern {
             name: "Cross-Site Scripting".to_string(),
-            pattern: regex::Regex::new(r"(?i)(<script|javascript:|on\w+\s*=|<iframe|<embed|<object)").unwrap(),
+            pattern: regex::Regex::new(
+                r"(?i)(<script|javascript:|on\w+\s*=|<iframe|<embed|<object)",
+            )
+            .unwrap(),
             severity: ThreatSeverity::High,
             action: SecurityAction::Block,
         });
@@ -211,7 +214,8 @@ impl ThreatDetectionEngine {
         // Path traversal
         attack_patterns.push(AttackPattern {
             name: "Path Traversal".to_string(),
-            pattern: regex::Regex::new(r"(\.\.[\\/]){2,}|([\\/]\.\.){2,}|%2e%2e[\\/]|[\\/]%2e%2e").unwrap(),
+            pattern: regex::Regex::new(r"(\.\.[\\/]){2,}|([\\/]\.\.){2,}|%2e%2e[\\/]|[\\/]%2e%2e")
+                .unwrap(),
             severity: ThreatSeverity::Medium,
             action: SecurityAction::Block,
         });
@@ -228,8 +232,8 @@ impl ThreatDetectionEngine {
             attack_patterns,
             ip_reputation: Arc::new(Mutex::new(HashMap::new())),
             anomaly_thresholds: AnomalyThresholds {
-                max_request_rate: 100, // per minute
-                max_payload_size: 10_000_000, // 10MB
+                max_request_rate: 100,         // per minute
+                max_payload_size: 10_000_000,  // 10MB
                 max_encryption_operations: 50, // per minute
                 suspicious_pattern_count: 5,
             },
@@ -278,7 +282,7 @@ impl ThreatDetectionEngine {
     /// Assess IP reputation risk
     fn assess_ip_risk(&self, ip: &str) -> IpRiskAssessment {
         let reputation_map = self.ip_reputation.lock().unwrap();
-        
+
         if let Some(reputation) = reputation_map.get(ip) {
             let severity = if reputation.score < -50 {
                 ThreatSeverity::High
@@ -308,13 +312,15 @@ impl ThreatDetectionEngine {
     /// Update IP reputation based on behavior
     pub fn update_ip_reputation(&self, ip: &str, violation: SecurityViolation) {
         let mut reputation_map = self.ip_reputation.lock().unwrap();
-        
-        let reputation = reputation_map.entry(ip.to_string()).or_insert(IpReputation {
-            score: 0,
-            last_seen: Instant::now(),
-            violations: Vec::new(),
-            country: None,
-        });
+
+        let reputation = reputation_map
+            .entry(ip.to_string())
+            .or_insert(IpReputation {
+                score: 0,
+                last_seen: Instant::now(),
+                violations: Vec::new(),
+                country: None,
+            });
 
         // Adjust score based on violation severity
         let score_adjustment = match violation.severity {
@@ -384,23 +390,34 @@ impl EnhancedValidator {
         let mut rules = HashMap::new();
 
         // Define standard validation rules
-        rules.insert("prompt".to_string(), ValidationRule {
-            field_name: "prompt".to_string(),
-            min_length: Some(1),
-            max_length: Some(10_000),
-            pattern: None,
-            required: true,
-            sanitize: true,
-        });
+        rules.insert(
+            "prompt".to_string(),
+            ValidationRule {
+                field_name: "prompt".to_string(),
+                min_length: Some(1),
+                max_length: Some(10_000),
+                pattern: None,
+                required: true,
+                sanitize: true,
+            },
+        );
 
-        rules.insert("client_id".to_string(), ValidationRule {
-            field_name: "client_id".to_string(),
-            min_length: Some(36),
-            max_length: Some(36),
-            pattern: Some(regex::Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").map_err(|e| Error::Validation(e.to_string()))?),
-            required: true,
-            sanitize: false,
-        });
+        rules.insert(
+            "client_id".to_string(),
+            ValidationRule {
+                field_name: "client_id".to_string(),
+                min_length: Some(36),
+                max_length: Some(36),
+                pattern: Some(
+                    regex::Regex::new(
+                        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                    )
+                    .map_err(|e| Error::Validation(e.to_string()))?,
+                ),
+                required: true,
+                sanitize: false,
+            },
+        );
 
         // Content filters
         let filters = vec![
@@ -409,7 +426,8 @@ impl EnhancedValidator {
                 filter_type: FilterType::Secrets,
                 action: FilterAction::Block,
                 patterns: vec![
-                    r"(?i)(password|passwd|pwd|secret|key|token|auth|credential)\s*[:=]\s*\S+".to_string(),
+                    r"(?i)(password|passwd|pwd|secret|key|token|auth|credential)\s*[:=]\s*\S+"
+                        .to_string(),
                     r"(?i)api[_-]?key\s*[:=]\s*[a-zA-Z0-9]{20,}".to_string(),
                     r"(?i)(access[_-]?token|bearer[_-]?token)\s*[:=]\s*[a-zA-Z0-9]+".to_string(),
                 ],
@@ -419,7 +437,7 @@ impl EnhancedValidator {
                 filter_type: FilterType::PersonalData,
                 action: FilterAction::Warn,
                 patterns: vec![
-                    r"\b\d{3}-\d{2}-\d{4}\b".to_string(), // SSN
+                    r"\b\d{3}-\d{2}-\d{4}\b".to_string(),                      // SSN
                     r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b".to_string(), // Credit card
                     r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string(), // Email
                 ],
@@ -452,7 +470,7 @@ impl EnhancedValidator {
                     FilterAction::Block => errors.push(violation),
                     FilterAction::Warn => warnings.push(violation),
                     FilterAction::Log => log::warn!("Content filter triggered: {}", violation),
-                    FilterAction::Sanitize => {}, // Would modify value
+                    FilterAction::Sanitize => {} // Would modify value
                 }
             }
         }
@@ -461,7 +479,12 @@ impl EnhancedValidator {
             is_valid: errors.is_empty(),
             errors,
             warnings,
-            sanitized_value: if self.rules.get(field_name).map(|r| r.sanitize).unwrap_or(false) {
+            sanitized_value: if self
+                .rules
+                .get(field_name)
+                .map(|r| r.sanitize)
+                .unwrap_or(false)
+            {
                 Some(self.sanitize_input(value))
             } else {
                 None
@@ -472,24 +495,36 @@ impl EnhancedValidator {
     /// Validate against specific rule
     fn validate_against_rule(&self, value: &str, rule: &ValidationRule) -> Result<()> {
         if rule.required && value.is_empty() {
-            return Err(Error::Validation(format!("Field '{}' is required", rule.field_name)));
+            return Err(Error::Validation(format!(
+                "Field '{}' is required",
+                rule.field_name
+            )));
         }
 
         if let Some(min_len) = rule.min_length {
             if value.len() < min_len {
-                return Err(Error::Validation(format!("Field '{}' too short", rule.field_name)));
+                return Err(Error::Validation(format!(
+                    "Field '{}' too short",
+                    rule.field_name
+                )));
             }
         }
 
         if let Some(max_len) = rule.max_length {
             if value.len() > max_len {
-                return Err(Error::Validation(format!("Field '{}' too long", rule.field_name)));
+                return Err(Error::Validation(format!(
+                    "Field '{}' too long",
+                    rule.field_name
+                )));
             }
         }
 
         if let Some(pattern) = &rule.pattern {
             if !pattern.is_match(value) {
-                return Err(Error::Validation(format!("Field '{}' invalid format", rule.field_name)));
+                return Err(Error::Validation(format!(
+                    "Field '{}' invalid format",
+                    rule.field_name
+                )));
             }
         }
 
@@ -513,10 +548,10 @@ impl EnhancedValidator {
         input
             .chars()
             .filter(|c| {
-                c.is_ascii() 
-                && (!c.is_control() || c.is_whitespace())
-                && *c != '\0'
-                && !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F')
+                c.is_ascii()
+                    && (!c.is_control() || c.is_whitespace())
+                    && *c != '\0'
+                    && !matches!(*c, '\x01'..='\x08' | '\x0B'..='\x0C' | '\x0E'..='\x1F' | '\x7F')
             })
             .collect()
     }
@@ -578,7 +613,7 @@ impl CryptographicValidator {
         // Check against approved parameter sets
         let is_approved = self.approved_params.iter().any(|approved| {
             approved.poly_modulus_degree == params.poly_modulus_degree
-            && approved.security_level >= params.security_level
+                && approved.security_level >= params.security_level
         });
 
         if !is_approved {
@@ -594,14 +629,19 @@ impl CryptographicValidator {
             return Err(Error::Cryptographic("Empty ciphertext data".to_string()));
         }
 
-        if ciphertext.data.len() > 100_000_000 { // 100MB limit
-            return Err(Error::Cryptographic("Ciphertext suspiciously large".to_string()));
+        if ciphertext.data.len() > 100_000_000 {
+            // 100MB limit
+            return Err(Error::Cryptographic(
+                "Ciphertext suspiciously large".to_string(),
+            ));
         }
 
         // Check noise budget
         if let Some(budget) = ciphertext.noise_budget {
             if budget == 0 {
-                return Err(Error::Cryptographic("Ciphertext has no remaining noise budget".to_string()));
+                return Err(Error::Cryptographic(
+                    "Ciphertext has no remaining noise budget".to_string(),
+                ));
             }
         }
 
@@ -621,17 +661,20 @@ impl SecurityAuditLogger {
     /// Log security event
     pub fn log_event(&self, event: SecurityEvent) {
         let mut buffer = self.log_buffer.lock().unwrap();
-        
+
         // Add to buffer
         buffer.push(event.clone());
-        
+
         // Enforce buffer size limit
         if buffer.len() > self.config.max_buffer_size {
             buffer.remove(0);
         }
 
         // Log critical events immediately
-        if matches!(event.severity, ThreatSeverity::Critical | ThreatSeverity::High) {
+        if matches!(
+            event.severity,
+            ThreatSeverity::Critical | ThreatSeverity::High
+        ) {
             log::error!("SECURITY ALERT: {:?}", event);
         }
     }
@@ -668,7 +711,7 @@ mod tests {
     fn test_threat_detection_sql_injection() {
         let detector = ThreatDetectionEngine::new();
         let result = detector.analyze_input("'; DROP TABLE users; --", "127.0.0.1");
-        
+
         assert!(!result.threats.is_empty());
         assert!(matches!(result.overall_severity, ThreatSeverity::High));
         assert!(matches!(result.recommended_action, SecurityAction::Block));
@@ -678,7 +721,7 @@ mod tests {
     fn test_threat_detection_xss() {
         let detector = ThreatDetectionEngine::new();
         let result = detector.analyze_input("<script>alert('xss')</script>", "127.0.0.1");
-        
+
         assert!(!result.threats.is_empty());
         assert!(matches!(result.overall_severity, ThreatSeverity::High));
     }
@@ -686,11 +729,11 @@ mod tests {
     #[test]
     fn test_enhanced_validation() {
         let validator = EnhancedValidator::new().unwrap();
-        
+
         // Valid input
         let result = validator.validate_input("prompt", "Hello, world!");
         assert!(result.is_valid);
-        
+
         // Invalid input (too long)
         let long_input = "x".repeat(20_000);
         let result = validator.validate_input("prompt", &long_input);
@@ -701,7 +744,7 @@ mod tests {
     fn test_content_filter_secrets() {
         let validator = EnhancedValidator::new().unwrap();
         let result = validator.validate_input("prompt", "My password is: secret123");
-        
+
         // Should be valid but may have warnings about secrets
         // (In real implementation, content filters would trigger)
         assert!(result.is_valid); // Basic validation passes
@@ -710,7 +753,7 @@ mod tests {
     #[test]
     fn test_cryptographic_validation() {
         let validator = CryptographicValidator::new().unwrap();
-        
+
         // Valid parameters
         let valid_params = FheParams {
             poly_modulus_degree: 16384,
@@ -719,7 +762,7 @@ mod tests {
             security_level: 128,
         };
         assert!(validator.validate_fhe_params(&valid_params).is_ok());
-        
+
         // Invalid parameters (security level too low)
         let invalid_params = FheParams {
             poly_modulus_degree: 16384,
@@ -734,11 +777,11 @@ mod tests {
     fn test_ip_reputation_tracking() {
         let detector = ThreatDetectionEngine::new();
         let ip = "192.168.1.100";
-        
+
         // Initially neutral
         let initial_risk = detector.assess_ip_risk(ip);
         assert_eq!(initial_risk.score, 0);
-        
+
         // Add violation
         let violation = SecurityViolation {
             timestamp: Instant::now(),
@@ -746,9 +789,9 @@ mod tests {
             severity: ThreatSeverity::Medium,
             details: "Multiple failed login attempts".to_string(),
         };
-        
+
         detector.update_ip_reputation(ip, violation);
-        
+
         // Should now have negative score
         let updated_risk = detector.assess_ip_risk(ip);
         assert!(updated_risk.score < 0);

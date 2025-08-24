@@ -29,10 +29,10 @@ mod tests {
     fn test_key_generation() {
         let params = FheParams::default();
         let mut engine = FheEngine::new(params).expect("Failed to create engine");
-        
+
         let result = engine.generate_keys();
         assert!(result.is_ok());
-        
+
         let (client_id, server_id) = result.unwrap();
         assert_ne!(client_id, Uuid::nil());
         assert_ne!(server_id, Uuid::nil());
@@ -42,13 +42,17 @@ mod tests {
     fn test_encryption_decryption() {
         let params = FheParams::default();
         let mut engine = FheEngine::new(params).expect("Failed to create engine");
-        
+
         let (client_id, _) = engine.generate_keys().expect("Failed to generate keys");
-        
+
         let plaintext = "Hello FHE!";
-        let ciphertext = engine.encrypt_text(client_id, plaintext).expect("Failed to encrypt");
-        let decrypted = engine.decrypt_text(client_id, &ciphertext).expect("Failed to decrypt");
-        
+        let ciphertext = engine
+            .encrypt_text(client_id, plaintext)
+            .expect("Failed to encrypt");
+        let decrypted = engine
+            .decrypt_text(client_id, &ciphertext)
+            .expect("Failed to decrypt");
+
         assert_eq!(plaintext, decrypted);
         assert!(!ciphertext.data.is_empty());
         assert!(ciphertext.noise_budget.is_some());
@@ -58,16 +62,16 @@ mod tests {
     fn test_input_validation() {
         let params = FheParams::default();
         let mut engine = FheEngine::new(params).expect("Failed to create engine");
-        
+
         let (client_id, _) = engine.generate_keys().expect("Failed to generate keys");
-        
+
         // Test empty input
         assert!(engine.encrypt_text(client_id, "").is_err());
-        
+
         // Test too long input
         let long_text = "x".repeat(15000);
         assert!(engine.encrypt_text(client_id, &long_text).is_err());
-        
+
         // Test malicious input
         let malicious = "text<script>alert('xss')</script>";
         assert!(engine.encrypt_text(client_id, malicious).is_err());
@@ -77,13 +81,13 @@ mod tests {
     fn test_engine_stats() {
         let params = FheParams::default();
         let mut engine = FheEngine::new(params).expect("Failed to create engine");
-        
+
         let initial_stats = engine.get_stats();
         assert_eq!(initial_stats.total_client_keys, 0);
         assert_eq!(initial_stats.total_server_keys, 0);
-        
+
         let _ = engine.generate_keys().expect("Failed to generate keys");
-        
+
         let stats = engine.get_stats();
         assert_eq!(stats.total_client_keys, 1);
         assert_eq!(stats.total_server_keys, 1);
