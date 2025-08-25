@@ -133,7 +133,7 @@ pub struct ClientKey {
 }
 
 /// Server key for homomorphic operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct ServerKey {
     pub id: Uuid,
@@ -150,7 +150,7 @@ pub struct FheStats {
 }
 
 /// FHE engine for homomorphic operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FheEngine {
     params: FheParams,
     pub client_keys: HashMap<Uuid, ClientKey>,
