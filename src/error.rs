@@ -83,6 +83,14 @@ pub enum Error {
     /// Encryption/Decryption errors
     #[error("Cryptographic error: {0}")]
     Cryptographic(String),
+
+    /// Load balancer errors
+    #[error("Load balancer error: {0}")]
+    LoadBalancer(String),
+
+    /// Pipeline processing errors
+    #[error("Pipeline error: {0}")]
+    Pipeline(String),
 }
 
 impl Error {
@@ -108,6 +116,8 @@ impl Error {
             Error::DataCorruption(_) => ErrorSeverity::Critical,
             Error::Cryptographic(_) => ErrorSeverity::Critical,
             Error::Configuration(_) => ErrorSeverity::Critical,
+            Error::LoadBalancer(_) => ErrorSeverity::High,
+            Error::Pipeline(_) => ErrorSeverity::Medium,
         }
     }
 
@@ -129,6 +139,8 @@ impl Error {
             Error::Concurrency(_) => "concurrency",
             Error::DataCorruption(_) => "data_integrity",
             Error::Configuration(_) => "configuration",
+            Error::LoadBalancer(_) => "load_balancing",
+            Error::Pipeline(_) => "pipeline",
         }
     }
 
