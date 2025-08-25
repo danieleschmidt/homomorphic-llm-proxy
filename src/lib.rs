@@ -19,6 +19,8 @@ pub mod proxy;
 pub mod scaling;
 pub mod security;
 pub mod security_enhanced;
+pub mod performance_scaling;
+pub mod global_config;
 pub mod validation;
 
 pub use config::Config;
