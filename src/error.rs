@@ -6,7 +6,7 @@ use thiserror::Error as ThisError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error types that can occur in the FHE proxy
-#[derive(Debug, ThisError)]
+#[derive(Debug, Clone, ThisError)]
 pub enum Error {
     /// Configuration errors
     #[error("Configuration error: {0}")]
@@ -14,7 +14,7 @@ pub enum Error {
 
     /// Network errors
     #[error("Network error: {0}")]
-    Network(#[from] std::io::Error),
+    Network(String),
 
     /// FHE operation errors
     #[error("FHE error: {0}")]
@@ -30,11 +30,11 @@ pub enum Error {
 
     /// Serialization errors
     #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    Serialization(String),
 
     /// Request errors
     #[error("Request error: {0}")]
-    Request(#[from] reqwest::Error),
+    Request(String),
 
     /// Authentication errors
     #[error("Authentication error: {0}")]
@@ -91,6 +91,29 @@ pub enum Error {
     /// Pipeline processing errors
     #[error("Pipeline error: {0}")]
     Pipeline(String),
+
+    /// Circuit breaker is open
+    #[error("Circuit breaker open: {0}")]
+    CircuitBreakerOpen(String),
+}
+
+// Custom From implementations for error types that don't implement Clone
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Network(err.to_string())
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::Request(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::Serialization(err.to_string())
+    }
 }
 
 impl Error {
@@ -118,6 +141,7 @@ impl Error {
             Error::Configuration(_) => ErrorSeverity::Critical,
             Error::LoadBalancer(_) => ErrorSeverity::High,
             Error::Pipeline(_) => ErrorSeverity::Medium,
+            Error::CircuitBreakerOpen(_) => ErrorSeverity::Medium,
         }
     }
 
@@ -141,6 +165,7 @@ impl Error {
             Error::Configuration(_) => "configuration",
             Error::LoadBalancer(_) => "load_balancing",
             Error::Pipeline(_) => "pipeline",
+            Error::CircuitBreakerOpen(_) => "circuit_breaker",
         }
     }
 

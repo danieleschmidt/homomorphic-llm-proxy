@@ -17,6 +17,9 @@ tokio-runtime = ["tokio/full"]
 gpu = ["cudarc"]
 benchmarks = ["criterion"]
 
+# Make cudarc truly optional - only build when GPU features explicitly enabled
+[target.'cfg(not(feature = "gpu"))'.dependencies]
+
 [dependencies]
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }
