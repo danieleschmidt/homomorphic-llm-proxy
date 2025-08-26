@@ -6,7 +6,7 @@ use thiserror::Error as ThisError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error types that can occur in the FHE proxy
-#[derive(Debug, ThisError)]
+#[derive(Debug, Clone, ThisError)]
 pub enum Error {
     /// Configuration errors
     #[error("Configuration error: {0}")]
@@ -14,7 +14,7 @@ pub enum Error {
 
     /// Network errors
     #[error("Network error: {0}")]
-    Network(#[from] std::io::Error),
+    Network(String),
 
     /// FHE operation errors
     #[error("FHE error: {0}")]
@@ -30,11 +30,11 @@ pub enum Error {
 
     /// Serialization errors
     #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    Serialization(String),
 
     /// Request errors
     #[error("Request error: {0}")]
-    Request(#[from] reqwest::Error),
+    Request(String),
 
     /// Authentication errors
     #[error("Authentication error: {0}")]
@@ -91,6 +91,38 @@ pub enum Error {
     /// Pipeline processing errors
     #[error("Pipeline error: {0}")]
     Pipeline(String),
+
+    /// Circuit breaker is open
+    #[error("Circuit breaker is open")]
+    CircuitBreakerOpen,
+
+    /// Partition already exists
+    #[error("Partition already exists: {0}")]
+    PartitionAlreadyExists(String),
+
+    /// Partition not found
+    #[error("Partition not found: {0}")]
+    PartitionNotFound(String),
+
+    /// Failed to acquire permit
+    #[error("Failed to acquire permit")]
+    PermitAcquisitionFailed,
+
+    /// Service unavailable
+    #[error("Service unavailable")]
+    ServiceUnavailable,
+
+    /// Rate limited
+    #[error("Request rate limited")]
+    RateLimited,
+
+    /// Operation timeout (unit variant)
+    #[error("Operation timeout")]
+    OperationTimeout,
+
+    /// Validation failed
+    #[error("Validation failed: {0}")]
+    ValidationFailed(String),
 }
 
 impl Error {
@@ -118,6 +150,14 @@ impl Error {
             Error::Configuration(_) => ErrorSeverity::Critical,
             Error::LoadBalancer(_) => ErrorSeverity::High,
             Error::Pipeline(_) => ErrorSeverity::Medium,
+            Error::CircuitBreakerOpen => ErrorSeverity::Medium,
+            Error::PartitionAlreadyExists(_) => ErrorSeverity::Low,
+            Error::PartitionNotFound(_) => ErrorSeverity::Medium,
+            Error::PermitAcquisitionFailed => ErrorSeverity::Medium,
+            Error::ServiceUnavailable => ErrorSeverity::High,
+            Error::RateLimited => ErrorSeverity::Low,
+            Error::OperationTimeout => ErrorSeverity::Medium,
+            Error::ValidationFailed(_) => ErrorSeverity::Medium,
         }
     }
 
@@ -141,6 +181,14 @@ impl Error {
             Error::Configuration(_) => "configuration",
             Error::LoadBalancer(_) => "load_balancing",
             Error::Pipeline(_) => "pipeline",
+            Error::CircuitBreakerOpen => "resilience",
+            Error::PartitionAlreadyExists(_) => "bulkhead",
+            Error::PartitionNotFound(_) => "bulkhead", 
+            Error::PermitAcquisitionFailed => "bulkhead",
+            Error::ServiceUnavailable => "availability",
+            Error::RateLimited => "rate_limiting",
+            Error::OperationTimeout => "performance",
+            Error::ValidationFailed(_) => "validation",
         }
     }
 
@@ -195,6 +243,24 @@ impl ErrorContext {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Network(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::Serialization(err.to_string())
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::Request(err.to_string())
+    }
+}
+
 impl From<toml::de::Error> for Error {
     fn from(err: toml::de::Error) -> Self {
         Error::Config(err.to_string())
@@ -210,5 +276,11 @@ impl From<config::ConfigError> for Error {
 impl From<base64::DecodeError> for Error {
     fn from(err: base64::DecodeError) -> Self {
         Error::Validation(format!("Base64 decode error: {}", err))
+    }
+}
+
+impl From<std::time::SystemTimeError> for Error {
+    fn from(err: std::time::SystemTimeError) -> Self {
+        Error::Internal(format!("System time error: {}", err))
     }
 }
