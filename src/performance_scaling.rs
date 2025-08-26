@@ -9,13 +9,16 @@
 
 use crate::error::{Error, Result};
 use crate::fhe::{Ciphertext, FheEngine};
-use crate::performance_optimized::{OptimizedRequest, OptimizedResponse, CacheData};
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, RwLock, atomic::{AtomicU64, AtomicUsize, Ordering}};
-use std::time::{Duration, Instant};
-use tokio::sync::{Semaphore, Mutex};
-use uuid::Uuid;
+use crate::performance_optimized::{CacheData, OptimizedRequest, OptimizedResponse};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+    Arc, RwLock,
+};
+use std::time::{Duration, Instant};
+use tokio::sync::{Mutex, Semaphore};
+use uuid::Uuid;
 
 /// Advanced scaling manager with ML-based optimization
 #[derive(Debug)]
@@ -735,7 +738,7 @@ impl ScalingManager {
     /// Create new scaling manager with ML optimization
     pub fn new() -> Result<Self> {
         log::info!("Initializing advanced scaling manager with ML optimization");
-        
+
         let batch_processor = Arc::new(IntelligentBatchProcessor::new()?);
         let resource_scaler = Arc::new(AdaptiveResourceScaler::new()?);
         let load_forecaster = Arc::new(PredictiveLoadForecaster::new()?);
@@ -754,14 +757,20 @@ impl ScalingManager {
     }
 
     /// Process request with advanced scaling optimizations
-    pub async fn process_with_scaling(&self, request: OptimizedRequest) -> Result<OptimizedResponse> {
+    pub async fn process_with_scaling(
+        &self,
+        request: OptimizedRequest,
+    ) -> Result<OptimizedResponse> {
         let start_time = Instant::now();
-        
-        log::debug!("Processing request {} with advanced scaling", request.request_id);
+
+        log::debug!(
+            "Processing request {} with advanced scaling",
+            request.request_id
+        );
 
         // Predict optimal processing strategy
         let strategy = self.predict_optimal_strategy(&request).await?;
-        
+
         // Apply intelligent batching if beneficial
         let processing_result = match strategy.use_batching {
             true => self.batch_processor.process_batched(request).await?,
@@ -769,7 +778,8 @@ impl ScalingManager {
         };
 
         // Update ML models with processing feedback
-        self.update_models_with_feedback(&processing_result, start_time.elapsed()).await?;
+        self.update_models_with_feedback(&processing_result, start_time.elapsed())
+            .await?;
 
         // Trigger adaptive scaling if needed
         self.resource_scaler.evaluate_scaling_needs().await?;
@@ -778,10 +788,13 @@ impl ScalingManager {
     }
 
     /// Predict optimal processing strategy using ML
-    async fn predict_optimal_strategy(&self, request: &OptimizedRequest) -> Result<ProcessingStrategy> {
+    async fn predict_optimal_strategy(
+        &self,
+        request: &OptimizedRequest,
+    ) -> Result<ProcessingStrategy> {
         // Extract request features
         let features = self.extract_request_features(request).await?;
-        
+
         // Use ensemble model to predict strategy
         let batch_score = self.predict_batching_benefit(&features).await?;
         let cache_strategy = self.predict_cache_strategy(&features).await?;
@@ -799,7 +812,11 @@ impl ScalingManager {
     async fn process_individual(&self, request: OptimizedRequest) -> Result<OptimizedResponse> {
         // Use intelligent cache for potential speedup
         let cache_key_str = format!("{:?}", request.cache_key); // Convert CacheKey to String
-        if let Ok(Some(cached)) = self.intelligent_cache.get_with_prediction(&cache_key_str).await {
+        if let Ok(Some(cached)) = self
+            .intelligent_cache
+            .get_with_prediction(&cache_key_str)
+            .await
+        {
             log::debug!("Intelligent cache hit for request {}", request.request_id);
             return Ok(OptimizedResponse {
                 data: cached,
@@ -811,38 +828,51 @@ impl ScalingManager {
 
         // Process with dynamic routing
         let routing_target = self.routing_engine.select_optimal_target(&request).await?;
-        
+
         // Simulate processing (in real implementation, would process on selected target)
         let result = CacheData::ProcessedData(request.data);
-        
+
         // Predictive cache update
         let cache_key_str = format!("{:?}", request.cache_key); // Convert CacheKey to String
-        self.intelligent_cache.store_with_prediction(&cache_key_str, result.clone()).await?;
+        self.intelligent_cache
+            .store_with_prediction(&cache_key_str, result.clone())
+            .await?;
 
         Ok(OptimizedResponse {
             data: result,
             processing_time: Duration::from_millis(50), // Optimized processing time
             cache_hit: false,
             optimization_applied: vec![
-                "ml_optimized".to_string(), 
+                "ml_optimized".to_string(),
                 "predictive_cached".to_string(),
-                format!("routed_to_{}", routing_target)
+                format!("routed_to_{}", routing_target),
             ],
         })
     }
 
     /// Update ML models with processing feedback
-    async fn update_models_with_feedback(&self, result: &OptimizedResponse, duration: Duration) -> Result<()> {
+    async fn update_models_with_feedback(
+        &self,
+        result: &OptimizedResponse,
+        duration: Duration,
+    ) -> Result<()> {
         // Update batch size predictor
         if let Some(batch_size) = self.extract_batch_size_from_result(result) {
-            self.batch_processor.optimizer.update_model(batch_size, duration, result).await?;
+            self.batch_processor
+                .optimizer
+                .update_model(batch_size, duration, result)
+                .await?;
         }
 
         // Update load forecaster
-        self.load_forecaster.record_actual_load(duration, result).await?;
+        self.load_forecaster
+            .record_actual_load(duration, result)
+            .await?;
 
         // Update cache prediction accuracy
-        self.intelligent_cache.update_prediction_accuracy(result.cache_hit).await?;
+        self.intelligent_cache
+            .update_prediction_accuracy(result.cache_hit)
+            .await?;
 
         Ok(())
     }
@@ -916,7 +946,7 @@ impl IntelligentBatchProcessor {
 
     pub async fn process_batched(&self, request: OptimizedRequest) -> Result<OptimizedResponse> {
         log::debug!("Processing request {} in batch mode", request.request_id);
-        
+
         // Simplified batching implementation
         Ok(OptimizedResponse {
             data: CacheData::ProcessedData(request.data),
@@ -936,7 +966,12 @@ impl BatchOptimizer {
         })
     }
 
-    pub async fn update_model(&self, _batch_size: usize, _duration: Duration, _result: &OptimizedResponse) -> Result<()> {
+    pub async fn update_model(
+        &self,
+        _batch_size: usize,
+        _duration: Duration,
+        _result: &OptimizedResponse,
+    ) -> Result<()> {
         log::trace!("Updating batch optimization model");
         Ok(())
     }
@@ -1005,12 +1040,15 @@ impl AdaptiveResourceScaler {
 
     pub async fn evaluate_scaling_needs(&self) -> Result<()> {
         log::debug!("Evaluating adaptive scaling needs");
-        
+
         // Simplified scaling evaluation
         let utilization = self.utilization_monitor.get_current_utilization().await?;
-        
+
         if utilization.cpu_usage > 0.8 {
-            log::info!("High CPU utilization detected: {:.2}%, triggering scale-up", utilization.cpu_usage * 100.0);
+            log::info!(
+                "High CPU utilization detected: {:.2}%, triggering scale-up",
+                utilization.cpu_usage * 100.0
+            );
             self.trigger_scale_up(1.5).await?;
         }
 
@@ -1019,7 +1057,7 @@ impl AdaptiveResourceScaler {
 
     async fn trigger_scale_up(&self, factor: f64) -> Result<()> {
         log::info!("Triggering resource scale-up by factor {:.2}", factor);
-        
+
         if let Ok(mut resources) = self.current_resources.write() {
             resources.cpu_cores *= factor;
             resources.memory_gb *= factor;
@@ -1088,7 +1126,11 @@ impl PredictiveLoadForecaster {
         })
     }
 
-    pub async fn record_actual_load(&self, _duration: Duration, _result: &OptimizedResponse) -> Result<()> {
+    pub async fn record_actual_load(
+        &self,
+        _duration: Duration,
+        _result: &OptimizedResponse,
+    ) -> Result<()> {
         log::trace!("Recording actual load data for model training");
         Ok(())
     }
@@ -1275,43 +1317,57 @@ impl BatchingStats {
 #[derive(Debug)]
 struct PatternDiscoveryEngine;
 impl PatternDiscoveryEngine {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct CorrelationAnalyzer;
 impl CorrelationAnalyzer {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct PolicyPerformanceTracker;
 impl PolicyPerformanceTracker {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct LoadBalancingOptimizer;
 impl LoadBalancingOptimizer {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct NetworkTopologyAnalyzer;
 impl NetworkTopologyAnalyzer {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct RoutingPerformanceTracker;
 impl RoutingPerformanceTracker {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct MetricsAggregator;
 impl MetricsAggregator {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
@@ -1320,13 +1376,17 @@ struct Dashboard;
 #[derive(Debug)]
 struct AlertingEngine;
 impl AlertingEngine {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug)]
 struct ReportGenerator;
 impl ReportGenerator {
-    pub fn new() -> Result<Self> { Ok(Self) }
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
 }
 
 #[cfg(test)]

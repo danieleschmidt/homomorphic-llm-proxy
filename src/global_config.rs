@@ -411,7 +411,7 @@ impl Currency {
 /// Exchange rate providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExchangeRateProvider {
-    ECB,        // European Central Bank
+    ECB, // European Central Bank
     OpenExchangeRates,
     CurrencyLayer,
     Fixer,
@@ -422,7 +422,7 @@ pub enum ExchangeRateProvider {
 pub struct RegionalPricing {
     pub base_currency: Currency,
     pub price_adjustments: HashMap<String, f64>, // service -> multiplier
-    pub tax_rates: HashMap<String, f64>, // tax type -> rate
+    pub tax_rates: HashMap<String, f64>,         // tax type -> rate
     pub discount_programs: Vec<DiscountProgram>,
 }
 
@@ -493,7 +493,7 @@ pub struct EncryptionRequirement {
 pub enum EncryptionLevel {
     AES128,
     AES256,
-    FHE,        // Fully Homomorphic Encryption
+    FHE,         // Fully Homomorphic Encryption
     PostQuantum, // Post-quantum cryptography
 }
 
@@ -608,11 +608,12 @@ impl GlobalConfiguration {
     /// Create default global configuration
     pub fn default() -> Self {
         let mut regions = HashMap::new();
-        
+
         // Configure North America
-        regions.insert(Region::NorthAmerica, RegionalConfig {
-            data_centers: vec![
-                DataCenter {
+        regions.insert(
+            Region::NorthAmerica,
+            RegionalConfig {
+                data_centers: vec![DataCenter {
                     id: "us-east-1".to_string(),
                     location: GeographicLocation {
                         country: "United States".to_string(),
@@ -622,62 +623,82 @@ impl GlobalConfiguration {
                         longitude: -77.5019,
                         timezone: "America/New_York".to_string(),
                     },
-                    availability_zones: vec!["us-east-1a".to_string(), "us-east-1b".to_string(), "us-east-1c".to_string()],
+                    availability_zones: vec![
+                        "us-east-1a".to_string(),
+                        "us-east-1b".to_string(),
+                        "us-east-1c".to_string(),
+                    ],
                     latency_sla_ms: 100,
                     uptime_sla_percent: 99.99,
                     backup_centers: vec!["us-west-2".to_string()],
+                }],
+                compliance_level: ComplianceLevel::High,
+                max_retention_days: 2555, // 7 years for financial data
+                primary_currency: Currency::USD,
+                business_hours: BusinessHours {
+                    timezone: "America/New_York".to_string(),
+                    monday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    tuesday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    wednesday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    thursday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    friday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    saturday: None,
+                    sunday: None,
+                    holidays: vec![],
                 },
-            ],
-            compliance_level: ComplianceLevel::High,
-            max_retention_days: 2555, // 7 years for financial data
-            primary_currency: Currency::USD,
-            business_hours: BusinessHours {
-                timezone: "America/New_York".to_string(),
-                monday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                tuesday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                wednesday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                thursday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                friday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                saturday: None,
-                sunday: None,
-                holidays: vec![],
+                api_endpoints: ApiEndpoints {
+                    primary: "https://api-na.fhe-llm.com".to_string(),
+                    backup: vec!["https://api-backup-na.fhe-llm.com".to_string()],
+                    cdn_endpoints: HashMap::new(),
+                    websocket_endpoints: vec!["wss://ws-na.fhe-llm.com".to_string()],
+                },
+                performance_settings: RegionalPerformanceSettings {
+                    cdn_config: CdnConfig {
+                        provider: "CloudFlare".to_string(),
+                        cache_ttl_seconds: 3600,
+                        edge_locations: vec!["US".to_string(), "CA".to_string()],
+                        compression_enabled: true,
+                    },
+                    cache_strategy: CacheStrategy {
+                        strategy_type: "LRU".to_string(),
+                        ttl_seconds: 1800,
+                        max_size_mb: 512,
+                        regional_caching: true,
+                    },
+                    connection_pooling: ConnectionPooling {
+                        max_connections: 100,
+                        idle_timeout_seconds: 300,
+                        connection_reuse: true,
+                    },
+                    request_batching: RequestBatching {
+                        enabled: true,
+                        max_batch_size: 32,
+                        batch_timeout_ms: 50,
+                    },
+                },
             },
-            api_endpoints: ApiEndpoints {
-                primary: "https://api-na.fhe-llm.com".to_string(),
-                backup: vec!["https://api-backup-na.fhe-llm.com".to_string()],
-                cdn_endpoints: HashMap::new(),
-                websocket_endpoints: vec!["wss://ws-na.fhe-llm.com".to_string()],
-            },
-            performance_settings: RegionalPerformanceSettings {
-                cdn_config: CdnConfig {
-                    provider: "CloudFlare".to_string(),
-                    cache_ttl_seconds: 3600,
-                    edge_locations: vec!["US".to_string(), "CA".to_string()],
-                    compression_enabled: true,
-                },
-                cache_strategy: CacheStrategy {
-                    strategy_type: "LRU".to_string(),
-                    ttl_seconds: 1800,
-                    max_size_mb: 512,
-                    regional_caching: true,
-                },
-                connection_pooling: ConnectionPooling {
-                    max_connections: 100,
-                    idle_timeout_seconds: 300,
-                    connection_reuse: true,
-                },
-                request_batching: RequestBatching {
-                    enabled: true,
-                    max_batch_size: 32,
-                    batch_timeout_ms: 50,
-                },
-            },
-        });
+        );
 
         // Configure Europe (GDPR)
-        regions.insert(Region::Europe, RegionalConfig {
-            data_centers: vec![
-                DataCenter {
+        regions.insert(
+            Region::Europe,
+            RegionalConfig {
+                data_centers: vec![DataCenter {
                     id: "eu-west-1".to_string(),
                     location: GeographicLocation {
                         country: "Ireland".to_string(),
@@ -687,57 +708,76 @@ impl GlobalConfiguration {
                         longitude: -6.2603,
                         timezone: "Europe/Dublin".to_string(),
                     },
-                    availability_zones: vec!["eu-west-1a".to_string(), "eu-west-1b".to_string(), "eu-west-1c".to_string()],
+                    availability_zones: vec![
+                        "eu-west-1a".to_string(),
+                        "eu-west-1b".to_string(),
+                        "eu-west-1c".to_string(),
+                    ],
                     latency_sla_ms: 100,
                     uptime_sla_percent: 99.99,
                     backup_centers: vec!["eu-central-1".to_string()],
+                }],
+                compliance_level: ComplianceLevel::Maximum, // GDPR requires maximum compliance
+                max_retention_days: 1095,                   // 3 years default, varies by data type
+                primary_currency: Currency::EUR,
+                business_hours: BusinessHours {
+                    timezone: "Europe/Dublin".to_string(),
+                    monday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    tuesday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    wednesday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    thursday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    friday: Some(TimeRange {
+                        start: "09:00".to_string(),
+                        end: "17:00".to_string(),
+                    }),
+                    saturday: None,
+                    sunday: None,
+                    holidays: vec![],
                 },
-            ],
-            compliance_level: ComplianceLevel::Maximum, // GDPR requires maximum compliance
-            max_retention_days: 1095, // 3 years default, varies by data type
-            primary_currency: Currency::EUR,
-            business_hours: BusinessHours {
-                timezone: "Europe/Dublin".to_string(),
-                monday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                tuesday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                wednesday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                thursday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                friday: Some(TimeRange { start: "09:00".to_string(), end: "17:00".to_string() }),
-                saturday: None,
-                sunday: None,
-                holidays: vec![],
+                api_endpoints: ApiEndpoints {
+                    primary: "https://api-eu.fhe-llm.com".to_string(),
+                    backup: vec!["https://api-backup-eu.fhe-llm.com".to_string()],
+                    cdn_endpoints: HashMap::new(),
+                    websocket_endpoints: vec!["wss://ws-eu.fhe-llm.com".to_string()],
+                },
+                performance_settings: RegionalPerformanceSettings {
+                    cdn_config: CdnConfig {
+                        provider: "CloudFlare".to_string(),
+                        cache_ttl_seconds: 3600,
+                        edge_locations: vec!["EU".to_string()],
+                        compression_enabled: true,
+                    },
+                    cache_strategy: CacheStrategy {
+                        strategy_type: "LRU".to_string(),
+                        ttl_seconds: 1800,
+                        max_size_mb: 512,
+                        regional_caching: true,
+                    },
+                    connection_pooling: ConnectionPooling {
+                        max_connections: 100,
+                        idle_timeout_seconds: 300,
+                        connection_reuse: true,
+                    },
+                    request_batching: RequestBatching {
+                        enabled: true,
+                        max_batch_size: 32,
+                        batch_timeout_ms: 50,
+                    },
+                },
             },
-            api_endpoints: ApiEndpoints {
-                primary: "https://api-eu.fhe-llm.com".to_string(),
-                backup: vec!["https://api-backup-eu.fhe-llm.com".to_string()],
-                cdn_endpoints: HashMap::new(),
-                websocket_endpoints: vec!["wss://ws-eu.fhe-llm.com".to_string()],
-            },
-            performance_settings: RegionalPerformanceSettings {
-                cdn_config: CdnConfig {
-                    provider: "CloudFlare".to_string(),
-                    cache_ttl_seconds: 3600,
-                    edge_locations: vec!["EU".to_string()],
-                    compression_enabled: true,
-                },
-                cache_strategy: CacheStrategy {
-                    strategy_type: "LRU".to_string(),
-                    ttl_seconds: 1800,
-                    max_size_mb: 512,
-                    regional_caching: true,
-                },
-                connection_pooling: ConnectionPooling {
-                    max_connections: 100,
-                    idle_timeout_seconds: 300,
-                    connection_reuse: true,
-                },
-                request_batching: RequestBatching {
-                    enabled: true,
-                    max_batch_size: 32,
-                    batch_timeout_ms: 50,
-                },
-            },
-        });
+        );
 
         Self {
             regions,
@@ -805,32 +845,44 @@ impl GlobalConfiguration {
                 rtl_support: false, // Could be extended for Arabic/Hebrew
                 datetime_formats: {
                     let mut formats = HashMap::new();
-                    formats.insert(Region::NorthAmerica, DateTimeFormat {
-                        date_format: "MM/dd/yyyy".to_string(),
-                        time_format: "h:mm a".to_string(),
-                        timezone_display: true,
-                        week_start: WeekDay::Sunday,
-                    });
-                    formats.insert(Region::Europe, DateTimeFormat {
-                        date_format: "dd/MM/yyyy".to_string(),
-                        time_format: "HH:mm".to_string(),
-                        timezone_display: true,
-                        week_start: WeekDay::Monday,
-                    });
+                    formats.insert(
+                        Region::NorthAmerica,
+                        DateTimeFormat {
+                            date_format: "MM/dd/yyyy".to_string(),
+                            time_format: "h:mm a".to_string(),
+                            timezone_display: true,
+                            week_start: WeekDay::Sunday,
+                        },
+                    );
+                    formats.insert(
+                        Region::Europe,
+                        DateTimeFormat {
+                            date_format: "dd/MM/yyyy".to_string(),
+                            time_format: "HH:mm".to_string(),
+                            timezone_display: true,
+                            week_start: WeekDay::Monday,
+                        },
+                    );
                     formats
                 },
                 number_formats: {
                     let mut formats = HashMap::new();
-                    formats.insert(Region::NorthAmerica, NumberFormat {
-                        decimal_separator: ".".to_string(),
-                        thousands_separator: ",".to_string(),
-                        currency_symbol_position: CurrencyPosition::Before,
-                    });
-                    formats.insert(Region::Europe, NumberFormat {
-                        decimal_separator: ",".to_string(),
-                        thousands_separator: ".".to_string(),
-                        currency_symbol_position: CurrencyPosition::After,
-                    });
+                    formats.insert(
+                        Region::NorthAmerica,
+                        NumberFormat {
+                            decimal_separator: ".".to_string(),
+                            thousands_separator: ",".to_string(),
+                            currency_symbol_position: CurrencyPosition::Before,
+                        },
+                    );
+                    formats.insert(
+                        Region::Europe,
+                        NumberFormat {
+                            decimal_separator: ",".to_string(),
+                            thousands_separator: ".".to_string(),
+                            currency_symbol_position: CurrencyPosition::After,
+                        },
+                    );
                     formats
                 },
                 address_formats: HashMap::new(),
@@ -882,24 +934,25 @@ impl GlobalConfiguration {
     /// Validate compliance requirements for a region
     pub fn validate_compliance(&self, region: &Region) -> Result<()> {
         let jurisdiction = region.jurisdiction();
-        
+
         if !self.compliance.jurisdictions.contains(&jurisdiction) {
-            return Err(Error::Configuration(
-                format!("Jurisdiction {:?} not supported in current compliance configuration", jurisdiction)
-            ));
+            return Err(Error::Configuration(format!(
+                "Jurisdiction {:?} not supported in current compliance configuration",
+                jurisdiction
+            )));
         }
 
         // Validate GDPR-specific requirements
         if jurisdiction == RegulatoryJurisdiction::GDPR {
             if !self.compliance.data_subject_rights.right_to_erasure {
                 return Err(Error::Configuration(
-                    "GDPR requires right to erasure to be enabled".to_string()
+                    "GDPR requires right to erasure to be enabled".to_string(),
                 ));
             }
-            
+
             if self.compliance.data_subject_rights.response_time_days > 30 {
                 return Err(Error::Configuration(
-                    "GDPR requires response time of 30 days or less".to_string()
+                    "GDPR requires response time of 30 days or less".to_string(),
                 ));
             }
         }
@@ -910,7 +963,8 @@ impl GlobalConfiguration {
 
     /// Get supported languages for a region
     pub fn get_supported_languages(&self, region: &Region) -> Vec<Language> {
-        region.primary_languages()
+        region
+            .primary_languages()
             .into_iter()
             .filter(|lang| self.localization.supported_languages.contains(lang))
             .collect()
@@ -965,17 +1019,23 @@ mod tests {
     #[test]
     fn test_region_jurisdiction() {
         assert_eq!(Region::Europe.jurisdiction(), RegulatoryJurisdiction::GDPR);
-        assert_eq!(Region::NorthAmerica.jurisdiction(), RegulatoryJurisdiction::CCPA);
-        assert_eq!(Region::AsiaPacific.jurisdiction(), RegulatoryJurisdiction::PDPA);
+        assert_eq!(
+            Region::NorthAmerica.jurisdiction(),
+            RegulatoryJurisdiction::CCPA
+        );
+        assert_eq!(
+            Region::AsiaPacific.jurisdiction(),
+            RegulatoryJurisdiction::PDPA
+        );
     }
 
     #[test]
     fn test_data_transfer_rules() {
         let config = GlobalConfiguration::default();
-        
+
         // Same jurisdiction should be allowed
         assert!(config.is_transfer_allowed(&Region::NorthAmerica, &Region::NorthAmerica));
-        
+
         // Default behavior: different jurisdictions require explicit rules
         assert!(!config.is_transfer_allowed(&Region::Europe, &Region::China));
     }
