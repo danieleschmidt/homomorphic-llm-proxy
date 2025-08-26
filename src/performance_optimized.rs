@@ -556,10 +556,10 @@ impl PerformanceManager {
     /// Process request with full optimization
     pub async fn process_optimized(&self, request: OptimizedRequest) -> Result<OptimizedResponse> {
         let start_time = Instant::now();
-        
+
         // Input validation with comprehensive security checks
         self.validate_request(&request)?;
-        
+
         log::info!(
             "Processing optimized request {} with priority {:?}",
             request.request_id,
@@ -576,7 +576,7 @@ impl PerformanceManager {
             Ok(Some(cached_result)) => {
                 log::debug!("Cache hit for request {}", request.request_id);
                 self.metrics.record_cache_hit();
-                
+
                 // Validate cached data integrity
                 if self.validate_cache_data(&cached_result)? {
                     return Ok(OptimizedResponse {
@@ -586,7 +586,10 @@ impl PerformanceManager {
                         optimization_applied: vec!["cache_hit".to_string()],
                     });
                 } else {
-                    log::warn!("Cached data validation failed for request {}", request.request_id);
+                    log::warn!(
+                        "Cached data validation failed for request {}",
+                        request.request_id
+                    );
                     // Continue to fresh processing
                 }
             }
@@ -594,7 +597,11 @@ impl PerformanceManager {
                 log::debug!("Cache miss for request {}", request.request_id);
             }
             Err(e) => {
-                log::error!("Cache lookup error for request {}: {}", request.request_id, e);
+                log::error!(
+                    "Cache lookup error for request {}: {}",
+                    request.request_id,
+                    e
+                );
                 // Continue processing without cache
             }
         }
@@ -605,50 +612,87 @@ impl PerformanceManager {
             Err(e) => {
                 log::error!("Load balancer failed to select engine: {}", e);
                 self.metrics.record_request_failed("load_balancer_error");
-                return Err(Error::LoadBalancer(format!("No healthy engines available: {}", e)));
+                return Err(Error::LoadBalancer(format!(
+                    "No healthy engines available: {}",
+                    e
+                )));
             }
         };
 
-        log::debug!("Selected engine {} for request {}", engine_instance.id, request.request_id);
+        log::debug!(
+            "Selected engine {} for request {}",
+            engine_instance.id,
+            request.request_id
+        );
 
         // Queue in pipeline with timeout protection
         let work_item = match self.pipeline.create_work_item(request.clone()).await {
             Ok(item) => item,
             Err(e) => {
-                log::error!("Failed to create work item for request {}: {}", request.request_id, e);
-                self.metrics.record_request_failed("pipeline_creation_error");
+                log::error!(
+                    "Failed to create work item for request {}: {}",
+                    request.request_id,
+                    e
+                );
+                self.metrics
+                    .record_request_failed("pipeline_creation_error");
                 return Err(Error::Pipeline(format!("Work item creation failed: {}", e)));
             }
         };
 
         // Process with comprehensive error handling
-        let result = match tokio::time::timeout(request.timeout, self.pipeline.process_item(work_item)).await {
+        let result = match tokio::time::timeout(
+            request.timeout,
+            self.pipeline.process_item(work_item),
+        )
+        .await
+        {
             Ok(Ok(result)) => {
                 log::debug!("Successfully processed request {}", request.request_id);
                 result
             }
             Ok(Err(e)) => {
-                log::error!("Pipeline processing failed for request {}: {}", request.request_id, e);
-                self.metrics.record_request_failed("pipeline_processing_error");
+                log::error!(
+                    "Pipeline processing failed for request {}: {}",
+                    request.request_id,
+                    e
+                );
+                self.metrics
+                    .record_request_failed("pipeline_processing_error");
                 return Err(Error::Pipeline(format!("Processing failed: {}", e)));
             }
             Err(_) => {
-                log::error!("Request {} timed out after {:?}", request.request_id, request.timeout);
+                log::error!(
+                    "Request {} timed out after {:?}",
+                    request.request_id,
+                    request.timeout
+                );
                 self.metrics.record_request_failed("timeout");
-                return Err(Error::Timeout(format!("Request timeout after {:?}", request.timeout)));
+                return Err(Error::Timeout(format!(
+                    "Request timeout after {:?}",
+                    request.timeout
+                )));
             }
         };
 
         // Cache result with error handling
-        if let Err(e) = self.cache_system.store(&request.cache_key, result.clone()).await {
-            log::warn!("Failed to cache result for request {}: {}", request.request_id, e);
+        if let Err(e) = self
+            .cache_system
+            .store(&request.cache_key, result.clone())
+            .await
+        {
+            log::warn!(
+                "Failed to cache result for request {}: {}",
+                request.request_id,
+                e
+            );
             // Don't fail the request if caching fails
         }
 
         // Update metrics and cleanup
         let processing_time = start_time.elapsed();
         self.metrics.record_request_completed(processing_time);
-        
+
         // Release engine load
         engine_instance.current_load.fetch_sub(1, Ordering::Relaxed);
 
@@ -663,9 +707,9 @@ impl PerformanceManager {
             processing_time,
             cache_hit: false,
             optimization_applied: vec![
-                "load_balanced".to_string(), 
+                "load_balanced".to_string(),
                 "pipelined".to_string(),
-                "monitored".to_string()
+                "monitored".to_string(),
             ],
         })
     }
@@ -725,12 +769,16 @@ impl PerformanceManager {
 
         // Validate data size limits
         if request.data.len() > 10_000_000 {
-            return Err(Error::Validation("Request data exceeds maximum size limit".to_string()));
+            return Err(Error::Validation(
+                "Request data exceeds maximum size limit".to_string(),
+            ));
         }
 
         // Check timeout is reasonable
         if request.timeout > Duration::from_secs(300) {
-            return Err(Error::Validation("Request timeout exceeds maximum allowed".to_string()));
+            return Err(Error::Validation(
+                "Request timeout exceeds maximum allowed".to_string(),
+            ));
         }
 
         if request.timeout < Duration::from_millis(100) {
@@ -740,7 +788,9 @@ impl PerformanceManager {
         // Validate client context if present
         if let Some(ref client_ctx) = request.client_context {
             if client_ctx.client_id.is_nil() {
-                return Err(Error::Validation("Invalid client ID in context".to_string()));
+                return Err(Error::Validation(
+                    "Invalid client ID in context".to_string(),
+                ));
             }
         }
 
@@ -755,8 +805,11 @@ impl PerformanceManager {
             if quota.max_requests_per_minute == 0 {
                 return Err(Error::RateLimit("Client has zero quota".to_string()));
             }
-            
-            log::debug!("Rate limit check passed for client {}", client_ctx.client_id);
+
+            log::debug!(
+                "Rate limit check passed for client {}",
+                client_ctx.client_id
+            );
         }
         Ok(())
     }
@@ -767,10 +820,13 @@ impl PerformanceManager {
             CacheData::Ciphertext(ct) => {
                 // Validate ciphertext has reasonable size
                 if ct.data.is_empty() || ct.data.len() > 50_000_000 {
-                    log::warn!("Cached ciphertext has suspicious size: {} bytes", ct.data.len());
+                    log::warn!(
+                        "Cached ciphertext has suspicious size: {} bytes",
+                        ct.data.len()
+                    );
                     return Ok(false);
                 }
-                
+
                 // Check noise budget if available
                 if let Some(budget) = ct.noise_budget {
                     if budget < 5 {
@@ -778,12 +834,15 @@ impl PerformanceManager {
                         return Ok(false);
                     }
                 }
-                
+
                 Ok(true)
             }
             CacheData::ProcessedData(data) => {
                 if data.is_empty() || data.len() > 100_000_000 {
-                    log::warn!("Cached processed data has suspicious size: {} bytes", data.len());
+                    log::warn!(
+                        "Cached processed data has suspicious size: {} bytes",
+                        data.len()
+                    );
                     return Ok(false);
                 }
                 Ok(true)
@@ -950,7 +1009,7 @@ impl IntelligentCacheSystem {
         let l1_cache = Arc::new(RwLock::new(HashMap::new()));
         let l2_cache = Arc::new(RwLock::new(HashMap::new()));
         let l3_cache = Arc::new(RwLock::new(HashMap::new()));
-        
+
         let predictor = Arc::new(CachePredictionEngine {
             access_patterns: Arc::new(RwLock::new(HashMap::new())),
             temporal_patterns: Arc::new(RwLock::new(VecDeque::new())),
@@ -962,7 +1021,7 @@ impl IntelligentCacheSystem {
                 confidence_threshold: 0.7,
             })),
         });
-        
+
         let stats = Arc::new(CacheStatistics {
             l1_hits: Arc::new(AtomicU64::new(0)),
             l1_misses: Arc::new(AtomicU64::new(0)),
@@ -974,7 +1033,7 @@ impl IntelligentCacheSystem {
             preloads: Arc::new(AtomicU64::new(0)),
             prediction_accuracy: Arc::new(RwLock::new(0.0)),
         });
-        
+
         Ok(Self {
             l1_cache,
             l2_cache,
@@ -997,7 +1056,7 @@ impl IntelligentCacheSystem {
             }
         }
         self.stats.l1_misses.fetch_add(1, Ordering::Relaxed);
-        
+
         // Check L2 cache
         if let Ok(l2_guard) = self.l2_cache.read() {
             if let Some(entry) = l2_guard.get(key) {
@@ -1010,7 +1069,7 @@ impl IntelligentCacheSystem {
             }
         }
         self.stats.l2_misses.fetch_add(1, Ordering::Relaxed);
-        
+
         // Check L3 cache
         if let Ok(l3_guard) = self.l3_cache.read() {
             if let Some(entry) = l3_guard.get(key) {
@@ -1023,7 +1082,7 @@ impl IntelligentCacheSystem {
             }
         }
         self.stats.l3_misses.fetch_add(1, Ordering::Relaxed);
-        
+
         Ok(None)
     }
 
@@ -1040,7 +1099,7 @@ impl IntelligentCacheSystem {
             ttl: self.config.default_ttl,
             priority_score: self.calculate_priority_score(key, &data),
         };
-        
+
         // Store in L1 cache first
         if let Ok(mut l1_guard) = self.l1_cache.write() {
             if l1_guard.len() >= self.config.l1_max_entries {
@@ -1048,10 +1107,10 @@ impl IntelligentCacheSystem {
             }
             l1_guard.insert(key.clone(), entry);
         }
-        
+
         // Update access patterns for prediction
         self.update_access_pattern(key, CacheOperation::Miss).await;
-        
+
         Ok(())
     }
 
@@ -1059,28 +1118,28 @@ impl IntelligentCacheSystem {
         // Implementation would run cache optimization
         let optimization_start = Instant::now();
         let mut improvements = Vec::new();
-        
+
         // Analyze cache hit ratios
         let l1_hit_ratio = self.calculate_hit_ratio(1);
         let l2_hit_ratio = self.calculate_hit_ratio(2);
         let l3_hit_ratio = self.calculate_hit_ratio(3);
-        
+
         // Optimize eviction strategy if hit ratio is low
         if l1_hit_ratio < 0.7 {
             self.optimize_eviction_strategy().await;
             improvements.push("Optimized L1 eviction strategy".to_string());
         }
-        
+
         // Run prediction-based preloading
         let preload_count = self.run_predictive_preload().await?;
         if preload_count > 0 {
             improvements.push(format!("Preloaded {} items", preload_count));
         }
-        
+
         // Calculate total improvement
         let new_hit_ratio = (l1_hit_ratio + l2_hit_ratio + l3_hit_ratio) / 3.0;
         let improvement = (new_hit_ratio - 0.5).max(0.0) * 100.0;
-        
+
         if improvement > 0.0 {
             Ok(Some(OptimizationResult {
                 optimization_type: "Cache System".to_string(),
@@ -1100,29 +1159,29 @@ impl IntelligentCacheSystem {
 
     pub async fn get_statistics(&self) -> CacheStatsReport {
         // Implementation would collect cache statistics
-        let total_requests = self.stats.l1_hits.load(Ordering::Relaxed) +
-                           self.stats.l1_misses.load(Ordering::Relaxed) +
-                           self.stats.l2_hits.load(Ordering::Relaxed) +
-                           self.stats.l2_misses.load(Ordering::Relaxed) +
-                           self.stats.l3_hits.load(Ordering::Relaxed) +
-                           self.stats.l3_misses.load(Ordering::Relaxed);
-        
-        let total_hits = self.stats.l1_hits.load(Ordering::Relaxed) +
-                        self.stats.l2_hits.load(Ordering::Relaxed) +
-                        self.stats.l3_hits.load(Ordering::Relaxed);
-        
+        let total_requests = self.stats.l1_hits.load(Ordering::Relaxed)
+            + self.stats.l1_misses.load(Ordering::Relaxed)
+            + self.stats.l2_hits.load(Ordering::Relaxed)
+            + self.stats.l2_misses.load(Ordering::Relaxed)
+            + self.stats.l3_hits.load(Ordering::Relaxed)
+            + self.stats.l3_misses.load(Ordering::Relaxed);
+
+        let total_hits = self.stats.l1_hits.load(Ordering::Relaxed)
+            + self.stats.l2_hits.load(Ordering::Relaxed)
+            + self.stats.l3_hits.load(Ordering::Relaxed);
+
         let hit_ratio = if total_requests > 0 {
             total_hits as f64 / total_requests as f64
         } else {
             0.0
         };
-        
+
         let miss_ratio = 1.0 - hit_ratio;
-        
+
         let total_entries = self.get_total_entries();
         let memory_usage = self.calculate_memory_usage();
         let prediction_accuracy = *self.stats.prediction_accuracy.read().unwrap();
-        
+
         CacheStatsReport {
             hit_ratio,
             miss_ratio,
@@ -1156,9 +1215,7 @@ impl IntelligentCacheSystem {
             CacheData::Ciphertext(_) => 1024, // Estimated size
             CacheData::ProcessedData(vec) => vec.len(),
             CacheData::ValidationResult(_) => 1,
-            CacheData::Metadata(map) => map.iter()
-                .map(|(k, v)| k.len() + v.len())
-                .sum(),
+            CacheData::Metadata(map) => map.iter().map(|(k, v)| k.len() + v.len()).sum(),
         }
     }
 
@@ -1169,24 +1226,28 @@ impl IntelligentCacheSystem {
             CacheKeyType::IntermediateState => 0.6,
             CacheKeyType::ValidationResult => 0.4,
         };
-        
+
         let size_factor = 1.0 / (1.0 + self.estimate_size(data) as f64 / 1024.0);
         base_score * size_factor
     }
 
     fn evict_lru_from_l1(&self, l1_guard: &mut std::collections::HashMap<CacheKey, CacheEntry>) {
-        if let Some(oldest_key) = l1_guard.iter()
+        if let Some(oldest_key) = l1_guard
+            .iter()
             .min_by_key(|(_, entry)| entry.last_accessed)
-            .map(|(key, _)| key.clone()) {
+            .map(|(key, _)| key.clone())
+        {
             l1_guard.remove(&oldest_key);
             self.stats.evictions.fetch_add(1, Ordering::Relaxed);
         }
     }
 
     fn evict_lru_from_l2(&self, l2_guard: &mut std::collections::HashMap<CacheKey, CacheEntry>) {
-        if let Some(oldest_key) = l2_guard.iter()
+        if let Some(oldest_key) = l2_guard
+            .iter()
             .min_by_key(|(_, entry)| entry.last_accessed)
-            .map(|(key, _)| key.clone()) {
+            .map(|(key, _)| key.clone())
+        {
             l2_guard.remove(&oldest_key);
             self.stats.evictions.fetch_add(1, Ordering::Relaxed);
         }
@@ -1198,7 +1259,7 @@ impl IntelligentCacheSystem {
             key: key.clone(),
             operation,
         };
-        
+
         if let Ok(mut patterns) = self.predictor.temporal_patterns.write() {
             patterns.push_back(temporal_access);
             if patterns.len() > 10000 {
@@ -1217,7 +1278,7 @@ impl IntelligentCacheSystem {
                 } else {
                     0.0
                 }
-            },
+            }
             2 => {
                 let hits = self.stats.l2_hits.load(Ordering::Relaxed);
                 let misses = self.stats.l2_misses.load(Ordering::Relaxed);
@@ -1226,7 +1287,7 @@ impl IntelligentCacheSystem {
                 } else {
                     0.0
                 }
-            },
+            }
             3 => {
                 let hits = self.stats.l3_hits.load(Ordering::Relaxed);
                 let misses = self.stats.l3_misses.load(Ordering::Relaxed);
@@ -1235,7 +1296,7 @@ impl IntelligentCacheSystem {
                 } else {
                     0.0
                 }
-            },
+            }
             _ => 0.0,
         }
     }
@@ -1265,7 +1326,7 @@ impl AdaptiveLoadBalancer {
         // Implementation would create load balancer
         let engines = Arc::new(RwLock::new(Vec::new()));
         let strategy = Arc::new(RwLock::new(config.initial_strategy));
-        
+
         let health_monitor = Arc::new(HealthMonitor {
             health_checks: Arc::new(RwLock::new(HashMap::new())),
             check_interval: config.health_check_interval,
@@ -1277,7 +1338,7 @@ impl AdaptiveLoadBalancer {
                 min_health_score: 70,
             },
         });
-        
+
         let request_queue = Arc::new(PriorityRequestQueue {
             high_priority: Arc::new(RwLock::new(VecDeque::new())),
             normal_priority: Arc::new(RwLock::new(VecDeque::new())),
@@ -1289,7 +1350,7 @@ impl AdaptiveLoadBalancer {
                 queue_lengths: Arc::new(RwLock::new(HashMap::new())),
             }),
         });
-        
+
         Ok(Self {
             engines,
             strategy,
@@ -1302,21 +1363,17 @@ impl AdaptiveLoadBalancer {
         // Implementation would select optimal engine
         let strategy = self.strategy.read().unwrap().clone();
         let engines = self.engines.read().unwrap();
-        
+
         if engines.is_empty() {
-            return Err(Error::LoadBalancer("No healthy engines available".to_string()));
+            return Err(Error::LoadBalancer(
+                "No healthy engines available".to_string(),
+            ));
         }
-        
+
         let selected_engine = match strategy {
-            LoadBalanceStrategy::RoundRobin => {
-                self.select_round_robin(&engines)
-            }
-            LoadBalanceStrategy::LeastConnections => {
-                self.select_least_connections(&engines)
-            }
-            LoadBalanceStrategy::ResponseTimeBased => {
-                self.select_by_response_time(&engines)
-            }
+            LoadBalanceStrategy::RoundRobin => self.select_round_robin(&engines),
+            LoadBalanceStrategy::LeastConnections => self.select_least_connections(&engines),
+            LoadBalanceStrategy::ResponseTimeBased => self.select_by_response_time(&engines),
             LoadBalanceStrategy::AdaptiveHybrid { weights } => {
                 self.select_adaptive_hybrid(&engines, &weights)
             }
@@ -1324,37 +1381,45 @@ impl AdaptiveLoadBalancer {
                 self.select_weighted_round_robin(&engines, &weights)
             }
         };
-        
+
         // Update engine load
         selected_engine.current_load.fetch_add(1, Ordering::Relaxed);
         *selected_engine.last_used.write().unwrap() = Instant::now();
-        
+
         Ok(selected_engine)
     }
 
     pub async fn optimize(&self) -> Result<Option<OptimizationResult>> {
         // Implementation would optimize load balancing strategy
         let optimization_start = Instant::now();
-        
+
         // Analyze current performance
         let current_performance = self.analyze_performance().await;
-        
+
         // Determine if strategy change would improve performance
         let optimal_strategy = self.determine_optimal_strategy(&current_performance).await;
-        
+
         let mut strategy_guard = self.strategy.write().unwrap();
-        let strategy_changed = !matches!((strategy_guard.clone(), &optimal_strategy), 
-            (LoadBalanceStrategy::RoundRobin, LoadBalanceStrategy::RoundRobin) |
-            (LoadBalanceStrategy::LeastConnections, LoadBalanceStrategy::LeastConnections));
-        
+        let strategy_changed = !matches!(
+            (strategy_guard.clone(), &optimal_strategy),
+            (
+                LoadBalanceStrategy::RoundRobin,
+                LoadBalanceStrategy::RoundRobin
+            ) | (
+                LoadBalanceStrategy::LeastConnections,
+                LoadBalanceStrategy::LeastConnections
+            )
+        );
+
         if strategy_changed {
             *strategy_guard = optimal_strategy;
             drop(strategy_guard);
-            
+
             // Measure improvement
             let new_performance = self.analyze_performance().await;
-            let improvement = self.calculate_performance_improvement(&current_performance, &new_performance);
-            
+            let improvement =
+                self.calculate_performance_improvement(&current_performance, &new_performance);
+
             if improvement > 0.0 {
                 Ok(Some(OptimizationResult {
                     optimization_type: "Load Balancing Strategy".to_string(),
@@ -1379,33 +1444,38 @@ impl AdaptiveLoadBalancer {
         // Implementation would collect load balancer stats
         let engines_guard = self.engines.read().unwrap();
         let active_engines = engines_guard.len();
-        
-        let total_requests = self.request_queue.stats.total_processed.load(Ordering::Relaxed);
-        
+
+        let total_requests = self
+            .request_queue
+            .stats
+            .total_processed
+            .load(Ordering::Relaxed);
+
         // Calculate average response time across all engines
         let mut total_response_time = Duration::from_millis(0);
         let mut health_scores = Vec::new();
-        
+
         for engine in engines_guard.iter() {
             let response_times = engine.response_times.read().unwrap();
             if !response_times.is_empty() {
-                let avg_time: Duration = response_times.iter().sum::<Duration>() / response_times.len() as u32;
+                let avg_time: Duration =
+                    response_times.iter().sum::<Duration>() / response_times.len() as u32;
                 total_response_time += avg_time;
             }
-            
+
             let health_score = engine.health_score.load(Ordering::Relaxed);
             health_scores.push((engine.id, health_score));
         }
-        
+
         let average_response_time = if active_engines > 0 {
             total_response_time / active_engines as u32
         } else {
             Duration::from_millis(0)
         };
-        
+
         // Calculate strategy effectiveness (simplified metric)
         let strategy_effectiveness = self.calculate_strategy_effectiveness(&engines_guard);
-        
+
         LoadBalancerStats {
             active_engines,
             total_requests,
@@ -1423,14 +1493,16 @@ impl AdaptiveLoadBalancer {
     }
 
     fn select_least_connections(&self, engines: &[EngineInstance]) -> Arc<EngineInstance> {
-        let best_engine = engines.iter()
+        let best_engine = engines
+            .iter()
             .min_by_key(|engine| engine.current_load.load(Ordering::Relaxed))
             .unwrap();
         Arc::new(best_engine.clone())
     }
 
     fn select_by_response_time(&self, engines: &[EngineInstance]) -> Arc<EngineInstance> {
-        let best_engine = engines.iter()
+        let best_engine = engines
+            .iter()
             .min_by_key(|engine| {
                 let response_times = engine.response_times.read().unwrap();
                 if response_times.is_empty() {
@@ -1443,8 +1515,13 @@ impl AdaptiveLoadBalancer {
         Arc::new(best_engine.clone())
     }
 
-    fn select_adaptive_hybrid(&self, engines: &[EngineInstance], weights: &StrategyWeights) -> Arc<EngineInstance> {
-        let best_engine = engines.iter()
+    fn select_adaptive_hybrid(
+        &self,
+        engines: &[EngineInstance],
+        weights: &StrategyWeights,
+    ) -> Arc<EngineInstance> {
+        let best_engine = engines
+            .iter()
             .min_by(|a, b| {
                 let score_a = self.calculate_adaptive_score(a, weights);
                 let score_b = self.calculate_adaptive_score(b, weights);
@@ -1454,12 +1531,17 @@ impl AdaptiveLoadBalancer {
         Arc::new(best_engine.clone())
     }
 
-    fn select_weighted_round_robin(&self, engines: &[EngineInstance], weights: &[f64]) -> Arc<EngineInstance> {
+    fn select_weighted_round_robin(
+        &self,
+        engines: &[EngineInstance],
+        weights: &[f64],
+    ) -> Arc<EngineInstance> {
         // Simplified weighted selection
         let index = if weights.is_empty() {
             0
         } else {
-            weights.iter()
+            weights
+                .iter()
                 .enumerate()
                 .max_by(|(_, &a), (_, &b)| a.partial_cmp(&b).unwrap())
                 .map(|(i, _)| i)
@@ -1472,7 +1554,7 @@ impl AdaptiveLoadBalancer {
         let load_score = engine.current_load.load(Ordering::Relaxed) as f64;
         let health_score = engine.health_score.load(Ordering::Relaxed) as f64;
         let error_score = engine.error_count.load(Ordering::Relaxed) as f64;
-        
+
         let response_time_score = {
             let times = engine.response_times.read().unwrap();
             if times.is_empty() {
@@ -1483,10 +1565,10 @@ impl AdaptiveLoadBalancer {
             }
         };
 
-        (load_score * weights.load_weight) +
-        (response_time_score * weights.response_time_weight) +
-        ((100.0 - health_score) * weights.health_weight) +
-        (error_score * weights.error_rate_weight)
+        (load_score * weights.load_weight)
+            + (response_time_score * weights.response_time_weight)
+            + ((100.0 - health_score) * weights.health_weight)
+            + (error_score * weights.error_rate_weight)
     }
 
     async fn analyze_performance(&self) -> PerformanceAnalysis {
@@ -1498,7 +1580,10 @@ impl AdaptiveLoadBalancer {
         }
     }
 
-    async fn determine_optimal_strategy(&self, _analysis: &PerformanceAnalysis) -> LoadBalanceStrategy {
+    async fn determine_optimal_strategy(
+        &self,
+        _analysis: &PerformanceAnalysis,
+    ) -> LoadBalanceStrategy {
         // Simplified strategy determination
         LoadBalanceStrategy::AdaptiveHybrid {
             weights: StrategyWeights {
@@ -1510,7 +1595,11 @@ impl AdaptiveLoadBalancer {
         }
     }
 
-    fn calculate_performance_improvement(&self, _before: &PerformanceAnalysis, _after: &PerformanceAnalysis) -> f64 {
+    fn calculate_performance_improvement(
+        &self,
+        _before: &PerformanceAnalysis,
+        _after: &PerformanceAnalysis,
+    ) -> f64 {
         5.0 // Simplified improvement calculation
     }
 
@@ -1518,11 +1607,12 @@ impl AdaptiveLoadBalancer {
         if engines.is_empty() {
             return 0.0;
         }
-        
-        let total_health: u64 = engines.iter()
+
+        let total_health: u64 = engines
+            .iter()
             .map(|e| e.health_score.load(Ordering::Relaxed))
             .sum();
-        
+
         total_health as f64 / (engines.len() as f64 * 100.0)
     }
 }
@@ -1539,7 +1629,7 @@ impl MemoryOptimizer {
     pub fn new(config: MemoryConfiguration) -> Result<Self> {
         // Implementation would create memory optimizer
         let mut pools = HashMap::new();
-        
+
         // Initialize memory pools for each type
         for (pool_type, initial_size) in &config.initial_pool_sizes {
             let pool = MemoryPool {
@@ -1557,15 +1647,15 @@ impl MemoryOptimizer {
             };
             pools.insert(pool_type.clone(), pool);
         }
-        
+
         let pools = Arc::new(RwLock::new(pools));
-        
+
         let gc_scheduler = Arc::new(GcScheduler {
             last_gc: Arc::new(RwLock::new(Instant::now())),
             gc_interval: config.gc_interval,
             pressure_thresholds: config.pressure_thresholds.clone(),
         });
-        
+
         let memory_tracker = Arc::new(MemoryTracker {
             total_allocated: Arc::new(AtomicUsize::new(0)),
             peak_usage: Arc::new(AtomicUsize::new(0)),
@@ -1577,9 +1667,9 @@ impl MemoryOptimizer {
                 fragmentation_ratio: 0.0,
             })),
         });
-        
+
         let strategies = Arc::new(RwLock::new(config.optimization_strategies));
-        
+
         Ok(Self {
             pools,
             gc_scheduler,
@@ -1592,16 +1682,22 @@ impl MemoryOptimizer {
         // Implementation would run memory optimization
         let optimization_start = Instant::now();
         let mut improvements = Vec::new();
-        
+
         // Check memory pressure
         let memory_pressure = self.calculate_memory_pressure().await;
-        
+
         // Run applicable optimization strategies
         let strategies = self.strategies.read().unwrap().clone();
-        
+
         for strategy in strategies.iter().filter(|s| s.enabled) {
-            if self.should_trigger_optimization(&strategy.trigger_condition, memory_pressure).await {
-                match self.execute_optimization(&strategy.optimization_action).await {
+            if self
+                .should_trigger_optimization(&strategy.trigger_condition, memory_pressure)
+                .await
+            {
+                match self
+                    .execute_optimization(&strategy.optimization_action)
+                    .await
+                {
                     Ok(result) => {
                         if let Some(improvement) = result {
                             improvements.push(improvement);
@@ -1613,27 +1709,40 @@ impl MemoryOptimizer {
                 }
             }
         }
-        
+
         // Run garbage collection if needed
         if self.should_run_gc().await {
             let gc_result = self.run_garbage_collection().await?;
             improvements.push(gc_result);
         }
-        
+
         // Calculate total improvement
-        let total_improvement = improvements.iter()
+        let total_improvement = improvements
+            .iter()
             .map(|imp| imp.improvement_percentage)
             .sum::<f64>();
-        
+
         if total_improvement > 0.0 {
             Ok(Some(OptimizationResult {
                 optimization_type: "Memory Management".to_string(),
                 improvement_percentage: total_improvement,
                 resource_savings: ResourceSavings {
-                    memory_saved_mb: improvements.iter().map(|i| i.resource_savings.memory_saved_mb).sum(),
-                    cpu_saved_percent: improvements.iter().map(|i| i.resource_savings.cpu_saved_percent).sum(),
-                    response_time_improvement_ms: improvements.iter().map(|i| i.resource_savings.response_time_improvement_ms).sum(),
-                    throughput_improvement_percent: improvements.iter().map(|i| i.resource_savings.throughput_improvement_percent).sum(),
+                    memory_saved_mb: improvements
+                        .iter()
+                        .map(|i| i.resource_savings.memory_saved_mb)
+                        .sum(),
+                    cpu_saved_percent: improvements
+                        .iter()
+                        .map(|i| i.resource_savings.cpu_saved_percent)
+                        .sum(),
+                    response_time_improvement_ms: improvements
+                        .iter()
+                        .map(|i| i.resource_savings.response_time_improvement_ms)
+                        .sum(),
+                    throughput_improvement_percent: improvements
+                        .iter()
+                        .map(|i| i.resource_savings.throughput_improvement_percent)
+                        .sum(),
                 },
                 timestamp: optimization_start,
             }))
@@ -1646,17 +1755,17 @@ impl MemoryOptimizer {
         // Implementation would collect memory statistics
         let total_allocated = self.memory_tracker.total_allocated.load(Ordering::Relaxed);
         let peak_usage = self.memory_tracker.peak_usage.load(Ordering::Relaxed);
-        
+
         // Calculate fragmentation metrics
         let fragmentation = self.memory_tracker.fragmentation.read().unwrap().clone();
-        
+
         // Calculate GC frequency (GCs per hour)
         let gc_frequency = self.calculate_gc_frequency().await;
-        
+
         // Calculate pool utilization
         let mut pool_utilization = HashMap::new();
         let pools = self.pools.read().unwrap();
-        
+
         for (pool_type, pool) in pools.iter() {
             let allocated = pool.allocated_bytes.load(Ordering::Relaxed);
             let max_size = pool.config.max_size;
@@ -1667,7 +1776,7 @@ impl MemoryOptimizer {
             };
             pool_utilization.insert(pool_type.clone(), utilization);
         }
-        
+
         MemoryStats {
             total_allocated_mb: total_allocated as f64 / (1024.0 * 1024.0),
             peak_usage_mb: peak_usage as f64 / (1024.0 * 1024.0),
@@ -1681,7 +1790,7 @@ impl MemoryOptimizer {
     async fn calculate_memory_pressure(&self) -> f64 {
         let total_allocated = self.memory_tracker.total_allocated.load(Ordering::Relaxed);
         let peak_usage = self.memory_tracker.peak_usage.load(Ordering::Relaxed);
-        
+
         if peak_usage > 0 {
             total_allocated as f64 / peak_usage as f64
         } else {
@@ -1689,57 +1798,61 @@ impl MemoryOptimizer {
         }
     }
 
-    async fn should_trigger_optimization(&self, condition: &TriggerCondition, memory_pressure: f64) -> bool {
+    async fn should_trigger_optimization(
+        &self,
+        condition: &TriggerCondition,
+        memory_pressure: f64,
+    ) -> bool {
         match condition {
             TriggerCondition::MemoryPressure(threshold) => memory_pressure > *threshold,
             TriggerCondition::AllocationRate(threshold) => {
                 // Simplified allocation rate check
                 let history = self.memory_tracker.allocation_history.read().unwrap();
-                let recent_allocations = history.iter()
+                let recent_allocations = history
+                    .iter()
                     .filter(|event| event.timestamp.elapsed() < Duration::from_secs(60))
                     .count() as f64;
                 recent_allocations > *threshold
-            },
+            }
             TriggerCondition::FragmentationThreshold(threshold) => {
                 let frag = self.memory_tracker.fragmentation.read().unwrap();
                 frag.fragmentation_ratio > *threshold
-            },
+            }
             TriggerCondition::ResponseTimeThreshold(_threshold) => {
                 // This would need response time data from elsewhere
                 false // Simplified
-            },
+            }
             TriggerCondition::ErrorRateThreshold(_) => false, // Simplified
         }
     }
 
-    async fn execute_optimization(&self, action: &OptimizationAction) -> Result<Option<OptimizationResult>> {
+    async fn execute_optimization(
+        &self,
+        action: &OptimizationAction,
+    ) -> Result<Option<OptimizationResult>> {
         match action {
-            OptimizationAction::CompactMemory => {
-                Ok(Some(OptimizationResult {
-                    optimization_type: "Memory Compaction".to_string(),
-                    improvement_percentage: 10.0,
-                    resource_savings: ResourceSavings {
-                        memory_saved_mb: 50.0,
-                        cpu_saved_percent: 2.0,
-                        response_time_improvement_ms: 10.0,
-                        throughput_improvement_percent: 1.0,
-                    },
-                    timestamp: Instant::now(),
-                }))
-            },
-            OptimizationAction::FlushCaches => {
-                Ok(Some(OptimizationResult {
-                    optimization_type: "Cache Flush".to_string(),
-                    improvement_percentage: 5.0,
-                    resource_savings: ResourceSavings {
-                        memory_saved_mb: 100.0,
-                        cpu_saved_percent: 1.0,
-                        response_time_improvement_ms: 5.0,
-                        throughput_improvement_percent: 0.5,
-                    },
-                    timestamp: Instant::now(),
-                }))
-            },
+            OptimizationAction::CompactMemory => Ok(Some(OptimizationResult {
+                optimization_type: "Memory Compaction".to_string(),
+                improvement_percentage: 10.0,
+                resource_savings: ResourceSavings {
+                    memory_saved_mb: 50.0,
+                    cpu_saved_percent: 2.0,
+                    response_time_improvement_ms: 10.0,
+                    throughput_improvement_percent: 1.0,
+                },
+                timestamp: Instant::now(),
+            })),
+            OptimizationAction::FlushCaches => Ok(Some(OptimizationResult {
+                optimization_type: "Cache Flush".to_string(),
+                improvement_percentage: 5.0,
+                resource_savings: ResourceSavings {
+                    memory_saved_mb: 100.0,
+                    cpu_saved_percent: 1.0,
+                    response_time_improvement_ms: 5.0,
+                    throughput_improvement_percent: 0.5,
+                },
+                timestamp: Instant::now(),
+            })),
             _ => Ok(None), // Simplified for other actions
         }
     }
@@ -1752,7 +1865,7 @@ impl MemoryOptimizer {
     async fn run_garbage_collection(&self) -> Result<OptimizationResult> {
         // Update last GC time
         *self.gc_scheduler.last_gc.write().unwrap() = Instant::now();
-        
+
         Ok(OptimizationResult {
             optimization_type: "Garbage Collection".to_string(),
             improvement_percentage: 15.0,
@@ -1776,7 +1889,7 @@ impl ProcessingPipeline {
     pub fn new(config: PipelineConfiguration) -> Result<Self> {
         // Implementation would create processing pipeline
         let mut stages = Vec::new();
-        
+
         // Create pipeline stages
         let stage_operations = [
             (StageOperation::Validation, 4),
@@ -1785,13 +1898,14 @@ impl ProcessingPipeline {
             (StageOperation::Decryption, 8),
             (StageOperation::Postprocessing, 4),
         ];
-        
+
         for (operation, parallelism) in stage_operations.iter() {
-            let buffer_size = config.stage_buffer_sizes
+            let buffer_size = config
+                .stage_buffer_sizes
                 .get(operation)
                 .copied()
                 .unwrap_or(32);
-                
+
             let stage = PipelineStage {
                 stage_id: Uuid::new_v4(),
                 name: format!("{:?}", operation),
@@ -1802,9 +1916,9 @@ impl ProcessingPipeline {
             };
             stages.push(stage);
         }
-        
+
         let stages = Arc::new(RwLock::new(stages));
-        
+
         // Create worker pool
         let mut workers = Vec::new();
         for _ in 0..config.worker_pool_size {
@@ -1817,7 +1931,7 @@ impl ProcessingPipeline {
             };
             workers.push(worker);
         }
-        
+
         let worker_pool = Arc::new(WorkerPool {
             workers: Arc::new(RwLock::new(workers)),
             work_queue: Arc::new(RwLock::new(VecDeque::new())),
@@ -1828,14 +1942,14 @@ impl ProcessingPipeline {
                 queue_length: Arc::new(AtomicUsize::new(0)),
             }),
         });
-        
+
         let throughput_monitor = Arc::new(ThroughputMonitor {
             requests_per_second: Arc::new(RwLock::new(0.0)),
             operations_per_second: Arc::new(RwLock::new(0.0)),
             bytes_processed_per_second: Arc::new(RwLock::new(0.0)),
             pipeline_efficiency: Arc::new(RwLock::new(0.0)),
         });
-        
+
         Ok(Self {
             stages,
             worker_pool,
@@ -1865,53 +1979,53 @@ impl ProcessingPipeline {
             },
             created_at: Instant::now(),
         };
-        
+
         // Add to work queue
         let mut queue = self.worker_pool.work_queue.write().unwrap();
         queue.push_back(work_item.clone());
-        self.worker_pool.stats.queue_length.store(queue.len(), Ordering::Relaxed);
-        
+        self.worker_pool
+            .stats
+            .queue_length
+            .store(queue.len(), Ordering::Relaxed);
+
         Ok(work_item)
     }
 
     pub async fn process_item(&self, item: WorkItem) -> Result<CacheData> {
         // Implementation would process item through pipeline
         let start_time = Instant::now();
-        
+
         // Process through each pipeline stage
         let mut current_data = item.data;
         let stages = self.stages.read().unwrap();
-        
+
         for stage in stages.iter() {
             // Acquire semaphore permit for this stage
-            let _permit = stage.semaphore.acquire().await
-                .map_err(|e| Error::Pipeline(format!("Failed to acquire stage permit: {}", e)))?;
-            
+            let _permit =
+                stage.semaphore.acquire().await.map_err(|e| {
+                    Error::Pipeline(format!("Failed to acquire stage permit: {}", e))
+                })?;
+
             // Process data through this stage
             current_data = match stage.operation {
-                StageOperation::Validation => {
-                    self.process_validation_stage(current_data).await?
-                }
-                StageOperation::Encryption => {
-                    self.process_encryption_stage(current_data).await?
-                }
-                StageOperation::Processing => {
-                    self.process_main_stage(current_data).await?
-                }
-                StageOperation::Decryption => {
-                    self.process_decryption_stage(current_data).await?
-                }
+                StageOperation::Validation => self.process_validation_stage(current_data).await?,
+                StageOperation::Encryption => self.process_encryption_stage(current_data).await?,
+                StageOperation::Processing => self.process_main_stage(current_data).await?,
+                StageOperation::Decryption => self.process_decryption_stage(current_data).await?,
                 StageOperation::Postprocessing => {
                     self.process_postprocessing_stage(current_data).await?
                 }
             };
         }
-        
+
         // Update statistics
-        self.worker_pool.stats.total_tasks_completed.fetch_add(1, Ordering::Relaxed);
+        self.worker_pool
+            .stats
+            .total_tasks_completed
+            .fetch_add(1, Ordering::Relaxed);
         let processing_time = start_time.elapsed();
         self.update_average_completion_time(processing_time).await;
-        
+
         // Return processed result
         Ok(CacheData::ProcessedData(current_data))
     }
@@ -1919,21 +2033,21 @@ impl ProcessingPipeline {
     pub async fn get_statistics(&self) -> PipelineStats {
         // Implementation would collect pipeline statistics
         let throughput_rps = *self.throughput_monitor.requests_per_second.read().unwrap();
-        
+
         let worker_utilization = *self.worker_pool.stats.worker_utilization.read().unwrap();
-        
+
         // Calculate queue lengths by priority
         let mut queue_lengths = HashMap::new();
         let work_queue = self.worker_pool.work_queue.read().unwrap();
-        
+
         for item in work_queue.iter() {
             *queue_lengths.entry(item.priority.clone()).or_insert(0) += 1;
         }
-        
+
         // Identify stage bottlenecks
         let mut stage_bottlenecks = Vec::new();
         let stages = self.stages.read().unwrap();
-        
+
         for stage in stages.iter() {
             let available_permits = stage.semaphore.available_permits();
             let total_permits = stage.parallelism;
@@ -1942,12 +2056,13 @@ impl ProcessingPipeline {
             } else {
                 0.0
             };
-            
-            if utilization > 0.8 { // High utilization indicates potential bottleneck
+
+            if utilization > 0.8 {
+                // High utilization indicates potential bottleneck
                 stage_bottlenecks.push((stage.operation.clone(), utilization));
             }
         }
-        
+
         PipelineStats {
             throughput_rps,
             worker_utilization,
@@ -1959,16 +2074,20 @@ impl ProcessingPipeline {
     // Helper methods for ProcessingPipeline
     async fn process_validation_stage(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         log::debug!("Processing validation stage with {} bytes", data.len());
-        
+
         // Comprehensive validation with error handling
         if data.is_empty() {
             log::error!("Validation failed: empty data");
-            return Err(Error::Validation("Empty data provided for validation".to_string()));
+            return Err(Error::Validation(
+                "Empty data provided for validation".to_string(),
+            ));
         }
 
         if data.len() > 100_000_000 {
             log::error!("Validation failed: data too large {} bytes", data.len());
-            return Err(Error::Validation("Data exceeds maximum validation size".to_string()));
+            return Err(Error::Validation(
+                "Data exceeds maximum validation size".to_string(),
+            ));
         }
 
         // Check for malicious patterns
@@ -1976,7 +2095,9 @@ impl ProcessingPipeline {
             let header = &data[..8];
             if header.starts_with(b"MALWARE") || header.starts_with(b"EXPLOIT") {
                 log::error!("Validation failed: potential malicious content detected");
-                return Err(Error::Security("Malicious content pattern detected".to_string()));
+                return Err(Error::Security(
+                    "Malicious content pattern detected".to_string(),
+                ));
             }
         }
 
@@ -1986,29 +2107,33 @@ impl ProcessingPipeline {
 
     async fn process_encryption_stage(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         log::debug!("Processing encryption stage with {} bytes", data.len());
-        
+
         if data.is_empty() {
             log::error!("Encryption failed: no data to encrypt");
-            return Err(Error::Cryptographic("No data provided for encryption".to_string()));
+            return Err(Error::Cryptographic(
+                "No data provided for encryption".to_string(),
+            ));
         }
 
         // Simulate encryption failure rate for testing resilience
         if data.len() % 13 == 0 {
             log::warn!("Simulated encryption failure for resilience testing");
-            return Err(Error::Cryptographic("Simulated encryption failure".to_string()));
+            return Err(Error::Cryptographic(
+                "Simulated encryption failure".to_string(),
+            ));
         }
 
         // Simple transformation for demo (in production, use real FHE)
         let mut encrypted = data;
         encrypted.reverse();
-        
+
         log::debug!("Encryption stage completed successfully");
         Ok(encrypted)
     }
 
     async fn process_main_stage(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         log::debug!("Processing main stage with {} bytes", data.len());
-        
+
         if data.is_empty() {
             log::error!("Main processing failed: no data");
             return Err(Error::Pipeline("No data for main processing".to_string()));
@@ -2017,43 +2142,47 @@ impl ProcessingPipeline {
         // Simulate processing with potential resource constraints
         if data.len() > 50_000_000 {
             log::error!("Main processing failed: data too large for current resources");
-            return Err(Error::ResourceExhaustion("Data size exceeds processing capacity".to_string()));
+            return Err(Error::ResourceExhaustion(
+                "Data size exceeds processing capacity".to_string(),
+            ));
         }
 
         // Process data with error resilience
-        let processed = data.into_iter()
-            .map(|b| b.wrapping_add(1))
-            .collect();
-        
+        let processed = data.into_iter().map(|b| b.wrapping_add(1)).collect();
+
         log::debug!("Main stage completed successfully");
         Ok(processed)
     }
 
     async fn process_decryption_stage(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         log::debug!("Processing decryption stage with {} bytes", data.len());
-        
+
         if data.is_empty() {
             log::error!("Decryption failed: no data to decrypt");
-            return Err(Error::Cryptographic("No data provided for decryption".to_string()));
+            return Err(Error::Cryptographic(
+                "No data provided for decryption".to_string(),
+            ));
         }
 
         // Validate encrypted data format before decryption
         if data.len() < 4 {
             log::error!("Decryption failed: data too short to be valid encrypted content");
-            return Err(Error::Cryptographic("Invalid encrypted data format".to_string()));
+            return Err(Error::Cryptographic(
+                "Invalid encrypted data format".to_string(),
+            ));
         }
 
         // Reverse the encryption (simple demo)
         let mut decrypted = data;
         decrypted.reverse();
-        
+
         log::debug!("Decryption stage completed successfully");
         Ok(decrypted)
     }
 
     async fn process_postprocessing_stage(&self, data: Vec<u8>) -> Result<Vec<u8>> {
         log::debug!("Processing postprocessing stage with {} bytes", data.len());
-        
+
         if data.is_empty() {
             log::warn!("Postprocessing received empty data, but continuing");
         }
@@ -2067,14 +2196,19 @@ impl ProcessingPipeline {
         // Add processing metadata (in production, this would be more sophisticated)
         let mut result = b"POST_PROCESSED:".to_vec();
         result.extend_from_slice(&data);
-        
+
         log::debug!("Postprocessing stage completed successfully");
         Ok(result)
     }
 
     async fn update_average_completion_time(&self, duration: Duration) {
         // Simplified average update
-        *self.worker_pool.stats.average_completion_time.write().unwrap() = duration;
+        *self
+            .worker_pool
+            .stats
+            .average_completion_time
+            .write()
+            .unwrap() = duration;
     }
 }
 
@@ -2117,23 +2251,24 @@ impl PerformanceMetrics {
         let total_requests = self.total_requests.load(Ordering::Relaxed);
         let successful_requests = self.successful_requests.load(Ordering::Relaxed);
         let _failed_requests = self.failed_requests.load(Ordering::Relaxed);
-        
+
         let success_rate = if total_requests > 0 {
             successful_requests as f64 / total_requests as f64
         } else {
             0.0
         };
-        
+
         let average_response_time = *self.average_response_time.read().unwrap();
         let p95_response_time = *self.p95_response_time.read().unwrap();
         let p99_response_time = *self.p99_response_time.read().unwrap();
         let throughput_mbps = *self.throughput_mbps.read().unwrap();
-        
+
         // Calculate efficiency score (composite metric)
         let cache_hit_ratio = *self.cache_hit_ratio.read().unwrap();
         let memory_efficiency = *self.memory_efficiency.read().unwrap();
-        let efficiency_score = (success_rate * 0.4 + cache_hit_ratio * 0.3 + memory_efficiency * 0.3) * 100.0;
-        
+        let efficiency_score =
+            (success_rate * 0.4 + cache_hit_ratio * 0.3 + memory_efficiency * 0.3) * 100.0;
+
         MetricsSummary {
             total_requests,
             success_rate,
