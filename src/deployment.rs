@@ -352,7 +352,7 @@ pub enum FailurePolicy {
 }
 
 // Monitoring and metrics types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeploymentMetrics {
     pub deployment_id: String,
     pub success_rate: Arc<AtomicU64>,
@@ -672,7 +672,7 @@ impl DeploymentOrchestrator {
 
         // Wait for green environment to be ready
         self.health_checker
-            .wait_for_deployment_ready(&green_deployment.name)
+            .wait_for_deployment_ready(&green_deployment.deployment_name)
             .await?;
 
         // Run smoke tests on green environment
@@ -733,7 +733,7 @@ impl DeploymentOrchestrator {
 
         // Wait for canary to be ready
         self.health_checker
-            .wait_for_deployment_ready(&canary_deployment.name)
+            .wait_for_deployment_ready(&canary_deployment.deployment_name)
             .await?;
 
         // Get canary stages from strategy
@@ -797,7 +797,7 @@ impl DeploymentOrchestrator {
                         break;
                     }
 
-                    tokio::time::sleep(Duration::from_seconds(30)).await;
+                    tokio::time::sleep(Duration::from_secs(30)).await;
                 }
 
                 info!("✅ Canary stage {} completed successfully", stage.name);
@@ -1074,7 +1074,7 @@ pub struct DeploymentRequest {
     pub labels: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct DeploymentResult {
     pub deployment_id: Uuid,
     pub status: DeploymentStatus,
@@ -1083,7 +1083,7 @@ pub struct DeploymentResult {
     pub rollback_available: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct DeploymentStatusReport {
     pub deployment_id: Uuid,
     pub status: DeploymentStatus,
@@ -1230,10 +1230,10 @@ pub struct ResourceMonitor;
 #[derive(Debug)]
 pub struct CostOptimizer;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionPoolSettings;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutlierDetectionConfig;
 
 #[derive(Debug)]
