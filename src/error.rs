@@ -1,3 +1,4 @@
+```rust
 //! Error types for the FHE LLM Proxy
 
 use thiserror::Error as ThisError;
@@ -95,25 +96,34 @@ pub enum Error {
     /// Circuit breaker is open
     #[error("Circuit breaker open: {0}")]
     CircuitBreakerOpen(String),
-}
 
-// Custom From implementations for error types that don't implement Clone
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Error::Network(err.to_string())
-    }
-}
+    /// Partition already exists
+    #[error("Partition already exists: {0}")]
+    PartitionAlreadyExists(String),
 
-impl From<reqwest::Error> for Error {
-    fn from(err: reqwest::Error) -> Self {
-        Error::Request(err.to_string())
-    }
-}
+    /// Partition not found
+    #[error("Partition not found: {0}")]
+    PartitionNotFound(String),
 
-impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Self {
-        Error::Serialization(err.to_string())
-    }
+    /// Failed to acquire permit
+    #[error("Failed to acquire permit")]
+    PermitAcquisitionFailed,
+
+    /// Service unavailable
+    #[error("Service unavailable")]
+    ServiceUnavailable,
+
+    /// Rate limited
+    #[error("Request rate limited")]
+    RateLimited,
+
+    /// Operation timeout (unit variant)
+    #[error("Operation timeout")]
+    OperationTimeout,
+
+    /// Validation failed
+    #[error("Validation failed: {0}")]
+    ValidationFailed(String),
 }
 
 impl Error {
@@ -142,6 +152,13 @@ impl Error {
             Error::LoadBalancer(_) => ErrorSeverity::High,
             Error::Pipeline(_) => ErrorSeverity::Medium,
             Error::CircuitBreakerOpen(_) => ErrorSeverity::Medium,
+            Error::PartitionAlreadyExists(_) => ErrorSeverity::Low,
+            Error::PartitionNotFound(_) => ErrorSeverity::Medium,
+            Error::PermitAcquisitionFailed => ErrorSeverity::Medium,
+            Error::ServiceUnavailable => ErrorSeverity::High,
+            Error::RateLimited => ErrorSeverity::Low,
+            Error::OperationTimeout => ErrorSeverity::Medium,
+            Error::ValidationFailed(_) => ErrorSeverity::Medium,
         }
     }
 
@@ -166,6 +183,13 @@ impl Error {
             Error::LoadBalancer(_) => "load_balancing",
             Error::Pipeline(_) => "pipeline",
             Error::CircuitBreakerOpen(_) => "circuit_breaker",
+            Error::PartitionAlreadyExists(_) => "bulkhead",
+            Error::PartitionNotFound(_) => "bulkhead", 
+            Error::PermitAcquisitionFailed => "bulkhead",
+            Error::ServiceUnavailable => "availability",
+            Error::RateLimited => "rate_limiting",
+            Error::OperationTimeout => "performance",
+            Error::ValidationFailed(_) => "validation",
         }
     }
 
@@ -220,6 +244,24 @@ impl ErrorContext {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Network(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::Serialization(err.to_string())
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::Request(err.to_string())
+    }
+}
+
 impl From<toml::de::Error> for Error {
     fn from(err: toml::de::Error) -> Self {
         Error::Config(err.to_string())
@@ -237,3 +279,10 @@ impl From<base64::DecodeError> for Error {
         Error::Validation(format!("Base64 decode error: {}", err))
     }
 }
+
+impl From<std::time::SystemTimeError> for Error {
+    fn from(err: std::time::SystemTimeError) -> Self {
+        Error::Internal(format!("System time error: {}", err))
+    }
+}
+```

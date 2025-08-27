@@ -268,7 +268,7 @@ pub enum ReferenceType {
     FollowsFrom,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SpanStatus {
     Ok,
     Cancelled,
@@ -508,7 +508,7 @@ pub struct SloTarget {
 }
 
 // Performance metrics
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TracePerformanceMetrics {
     pub total_duration: Duration,
     pub service_durations: HashMap<String, Duration>,
@@ -528,7 +528,7 @@ pub struct ServiceInfo {
     pub average_latency: Duration,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ErrorAnalysis {
     pub error_type: String,
     pub error_message: String,
@@ -1310,6 +1310,171 @@ impl SliCalculator {
     }
 }
 
+// Missing type definitions for observability.rs
+#[derive(Debug)]
+pub struct MetricRegistry {
+    pub metrics: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct MetricExportManager {
+    pub exporters: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct AdaptiveSamplingStrategy {
+    pub sampling_rules: HashMap<String, f64>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct TraceCorrelator {
+    pub correlation_rules: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct BaggageProcessor {
+    pub baggage_items: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct TraceExportPipeline {
+    pub pipeline_stages: Vec<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct LogCorrelationEngine {
+    pub correlation_models: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct LogSearchIndex {
+    pub indices: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct LogRetentionManager {
+    pub retention_policies: HashMap<String, Duration>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct LogProcessor {
+    pub processor_id: String,
+    pub processing_rules: Vec<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct NotificationChannel {
+    pub channel_id: String,
+    pub channel_type: String,
+    pub config: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct EscalationPolicy {
+    pub policy_id: String,
+    pub escalation_steps: Vec<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct AlertCorrelator {
+    pub correlation_rules: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct AlertSuppressionManager {
+    pub suppression_rules: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct AlertPredictor {
+    pub prediction_models: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct FeatureExtractor {
+    pub extractor_id: String,
+    pub features: Vec<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ModelTrainingPipeline {
+    pub pipeline_id: String,
+    pub training_stages: Vec<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct AnomalyPredictionEngine {
+    pub prediction_models: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ModelFeedbackLoop {
+    pub feedback_data: VecDeque<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct DataSource {
+    pub source_id: String,
+    pub source_type: String,
+    pub connection_config: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct AdaptiveLayoutEngine {
+    pub layout_templates: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct VisualizationEngine {
+    pub chart_renderers: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ProfilingSession {
+    pub session_id: String,
+    pub profiling_data: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct CpuProfiler {
+    pub profiling_config: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct MemoryProfiler {
+    pub memory_snapshots: Vec<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct IoProfiler {
+    pub io_metrics: HashMap<String, f64>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct FlameGraphGenerator {
+    pub graph_templates: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct PerformanceAdvisor {
+    pub advisor_rules: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ErrorBudgetTracker {
+    pub budget_definitions: HashMap<String, f64>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct BurnRateCalculator {
+    pub calculation_models: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ComplianceMonitor {
+    pub compliance_rules: HashMap<String, String>, // Placeholder
+}
+
 // Placeholder implementations for supporting types
 macro_rules! impl_new_for_placeholder {
     ($($type:ty),*) => {
@@ -1321,38 +1486,262 @@ macro_rules! impl_new_for_placeholder {
     };
 }
 
-impl_new_for_placeholder! {
-    MetricRegistry,
-    MetricExportManager,
-    AdaptiveSamplingStrategy,
-    TraceCorrelator,
-    BaggageProcessor,
-    TraceExportPipeline,
-    LogCorrelationEngine,
-    LogSearchIndex,
-    LogRetentionManager,
-    LogProcessor,
-    NotificationChannel,
-    EscalationPolicy,
-    AlertCorrelator,
-    AlertSuppressionManager,
-    AlertPredictor,
-    FeatureExtractor,
-    ModelTrainingPipeline,
-    AnomalyPredictionEngine,
-    ModelFeedbackLoop,
-    DataSource,
-    AdaptiveLayoutEngine,
-    VisualizationEngine,
-    ProfilingSession,
-    CpuProfiler,
-    MemoryProfiler,
-    IoProfiler,
-    FlameGraphGenerator,
-    PerformanceAdvisor,
-    ErrorBudgetTracker,
-    BurnRateCalculator,
-    ComplianceMonitor
+// Implementation for missing types in observability.rs
+impl MetricRegistry {
+    pub fn new() -> Self {
+        Self {
+            metrics: HashMap::new(),
+        }
+    }
+}
+
+impl MetricExportManager {
+    pub fn new() -> Self {
+        Self {
+            exporters: HashMap::new(),
+        }
+    }
+}
+
+impl AdaptiveSamplingStrategy {
+    pub fn new() -> Self {
+        Self {
+            sampling_rules: HashMap::new(),
+        }
+    }
+}
+
+impl TraceCorrelator {
+    pub fn new() -> Self {
+        Self {
+            correlation_rules: HashMap::new(),
+        }
+    }
+}
+
+impl BaggageProcessor {
+    pub fn new() -> Self {
+        Self {
+            baggage_items: HashMap::new(),
+        }
+    }
+}
+
+impl TraceExportPipeline {
+    pub fn new() -> Self {
+        Self {
+            pipeline_stages: Vec::new(),
+        }
+    }
+}
+
+impl LogCorrelationEngine {
+    pub fn new() -> Self {
+        Self {
+            correlation_models: HashMap::new(),
+        }
+    }
+}
+
+impl LogSearchIndex {
+    pub fn new() -> Self {
+        Self {
+            indices: HashMap::new(),
+        }
+    }
+}
+
+impl LogRetentionManager {
+    pub fn new() -> Self {
+        Self {
+            retention_policies: HashMap::new(),
+        }
+    }
+}
+
+impl LogProcessor {
+    pub fn new() -> Self {
+        Self {
+            processor_id: Uuid::new_v4().to_string(),
+            processing_rules: Vec::new(),
+        }
+    }
+}
+
+impl NotificationChannel {
+    pub fn new() -> Self {
+        Self {
+            channel_id: Uuid::new_v4().to_string(),
+            channel_type: "default".to_string(),
+            config: HashMap::new(),
+        }
+    }
+}
+
+impl EscalationPolicy {
+    pub fn new() -> Self {
+        Self {
+            policy_id: Uuid::new_v4().to_string(),
+            escalation_steps: Vec::new(),
+        }
+    }
+}
+
+impl AlertCorrelator {
+    pub fn new() -> Self {
+        Self {
+            correlation_rules: HashMap::new(),
+        }
+    }
+}
+
+impl AlertSuppressionManager {
+    pub fn new() -> Self {
+        Self {
+            suppression_rules: HashMap::new(),
+        }
+    }
+}
+
+impl AlertPredictor {
+    pub fn new() -> Self {
+        Self {
+            prediction_models: HashMap::new(),
+        }
+    }
+}
+
+impl FeatureExtractor {
+    pub fn new() -> Self {
+        Self {
+            extractor_id: Uuid::new_v4().to_string(),
+            features: Vec::new(),
+        }
+    }
+}
+
+impl ModelTrainingPipeline {
+    pub fn new() -> Self {
+        Self {
+            pipeline_id: Uuid::new_v4().to_string(),
+            training_stages: Vec::new(),
+        }
+    }
+}
+
+impl AnomalyPredictionEngine {
+    pub fn new() -> Self {
+        Self {
+            prediction_models: HashMap::new(),
+        }
+    }
+}
+
+impl ModelFeedbackLoop {
+    pub fn new() -> Self {
+        Self {
+            feedback_data: VecDeque::new(),
+        }
+    }
+}
+
+impl DataSource {
+    pub fn new() -> Self {
+        Self {
+            source_id: Uuid::new_v4().to_string(),
+            source_type: "default".to_string(),
+            connection_config: HashMap::new(),
+        }
+    }
+}
+
+impl AdaptiveLayoutEngine {
+    pub fn new() -> Self {
+        Self {
+            layout_templates: HashMap::new(),
+        }
+    }
+}
+
+impl VisualizationEngine {
+    pub fn new() -> Self {
+        Self {
+            chart_renderers: HashMap::new(),
+        }
+    }
+}
+
+impl ProfilingSession {
+    pub fn new() -> Self {
+        Self {
+            session_id: Uuid::new_v4().to_string(),
+            profiling_data: HashMap::new(),
+        }
+    }
+}
+
+impl CpuProfiler {
+    pub fn new() -> Self {
+        Self {
+            profiling_config: HashMap::new(),
+        }
+    }
+}
+
+impl MemoryProfiler {
+    pub fn new() -> Self {
+        Self {
+            memory_snapshots: Vec::new(),
+        }
+    }
+}
+
+impl IoProfiler {
+    pub fn new() -> Self {
+        Self {
+            io_metrics: HashMap::new(),
+        }
+    }
+}
+
+impl FlameGraphGenerator {
+    pub fn new() -> Self {
+        Self {
+            graph_templates: HashMap::new(),
+        }
+    }
+}
+
+impl PerformanceAdvisor {
+    pub fn new() -> Self {
+        Self {
+            advisor_rules: HashMap::new(),
+        }
+    }
+}
+
+impl ErrorBudgetTracker {
+    pub fn new() -> Self {
+        Self {
+            budget_definitions: HashMap::new(),
+        }
+    }
+}
+
+impl BurnRateCalculator {
+    pub fn new() -> Self {
+        Self {
+            calculation_models: HashMap::new(),
+        }
+    }
+}
+
+impl ComplianceMonitor {
+    pub fn new() -> Self {
+        Self {
+            compliance_rules: HashMap::new(),
+        }
+    }
 }
 
 impl Default for ObservabilityConfig {

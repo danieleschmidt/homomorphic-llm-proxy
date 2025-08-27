@@ -4,6 +4,7 @@
 //! edge computing, content delivery networks, and intelligent traffic routing.
 
 use crate::error::{Error, Result};
+use crate::performance_scaling::MetricsAggregator;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{
@@ -45,7 +46,7 @@ pub struct RegionManager {
 }
 
 /// Edge computing nodes for low-latency processing
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EdgeNode {
     node_id: String,
     location: GeographicLocation,
@@ -924,7 +925,7 @@ impl GlobalScalingOrchestrator {
         // Traffic optimization task
         let traffic_director = Arc::clone(&self.traffic_director);
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_seconds(30));
+            let mut interval = interval(Duration::from_secs(30));
             loop {
                 interval.tick().await;
                 if let Err(e) = traffic_director.optimize_routing().await {
@@ -960,7 +961,7 @@ impl GlobalScalingOrchestrator {
         // Global monitoring aggregation
         let monitoring = Arc::clone(&self.monitoring);
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_seconds(15));
+            let mut interval = interval(Duration::from_secs(15));
             loop {
                 interval.tick().await;
                 if let Err(e) = monitoring.aggregate_global_metrics().await {
@@ -1188,7 +1189,7 @@ pub enum RegionalHealth {
     Maintenance,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub enum EdgeHealthStatus {
     Healthy,
     Degraded,
@@ -1324,7 +1325,7 @@ pub struct ScalingEvent {
     pub outcome: ScalingOutcome,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RegionalScalingResult {
     pub region_id: String,
     pub instances_before: u32,
@@ -1404,27 +1405,101 @@ impl EdgeNode {
 }
 
 // Placeholder implementations for manager traits
-macro_rules! impl_manager_new_async {
-    ($($manager:ty),*) => {
-        $(
-            impl $manager {
-                pub async fn new() -> Result<Self> {
-                    Ok(Self)
-                }
-            }
-        )*
-    };
+impl GlobalTrafficDirector {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            routing_policies: Arc::new(RwLock::new(HashMap::new())),
+            geographic_router: Arc::new("placeholder".to_string()),
+            latency_optimizer: Arc::new("placeholder".to_string()),
+            load_balancer: Arc::new("placeholder".to_string()),
+            failover_manager: Arc::new("placeholder".to_string()),
+            anycast_manager: Arc::new("placeholder".to_string()),
+        })
+    }
 }
 
-impl_manager_new_async! {
-    GlobalTrafficDirector,
-    CapacityPlanner,
-    LoadPredictor,
-    GlobalAutoScaler,
-    DisasterRecoveryManager,
-    ComplianceManager,
-    GlobalCostOptimizer,
-    GlobalMonitoring
+impl CapacityPlanner {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            demand_forecaster: Arc::new("placeholder".to_string()),
+            resource_optimizer: Arc::new("placeholder".to_string()),
+            scaling_policies: Arc::new(RwLock::new(HashMap::new())),
+            capacity_models: Arc::new(RwLock::new(HashMap::new())),
+            provisioning_queue: Arc::new(RwLock::new(VecDeque::new())),
+        })
+    }
+}
+
+impl LoadPredictor {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            prediction_models: Arc::new(RwLock::new(HashMap::new())),
+            historical_data: Arc::new(RwLock::new(HashMap::new())),
+            real_time_analyzer: Arc::new("placeholder".to_string()),
+            pattern_detector: Arc::new("placeholder".to_string()),
+            seasonal_adjuster: Arc::new("placeholder".to_string()),
+        })
+    }
+}
+
+impl GlobalAutoScaler {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            scaling_controllers: Arc::new(RwLock::new(HashMap::new())),
+            metrics_aggregator: Arc::new(MetricsAggregator::new()?),
+            decision_engine: Arc::new(ScalingDecisionEngine::new()),
+            resource_allocator: Arc::new(GlobalResourceAllocator::new()),
+            scaling_history: Arc::new(RwLock::new(VecDeque::new())),
+        })
+    }
+}
+
+impl DisasterRecoveryManager {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            recovery_plans: Arc::new(RwLock::new(HashMap::new())),
+            backup_systems: Arc::new(RwLock::new(HashMap::new())),
+            replication_manager: Arc::new(ReplicationManager::new()),
+            failover_coordinator: Arc::new(FailoverCoordinator::new()),
+            recovery_monitor: Arc::new(RecoveryMonitor::new()),
+        })
+    }
+}
+
+impl ComplianceManager {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            compliance_policies: Arc::new(RwLock::new(HashMap::new())),
+            data_residency_enforcer: Arc::new(DataResidencyEnforcer::new()),
+            privacy_controller: Arc::new(PrivacyController::new()),
+            audit_tracker: Arc::new(AuditTracker::new()),
+            certification_manager: Arc::new(CertificationManager::new()),
+        })
+    }
+}
+
+impl GlobalCostOptimizer {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            cost_models: Arc::new(RwLock::new(HashMap::new())),
+            resource_recommender: Arc::new(ResourceRecommender::new()),
+            spot_instance_manager: Arc::new(SpotInstanceManager::new()),
+            reserved_capacity_optimizer: Arc::new(ReservedCapacityOptimizer::new()),
+            cost_alerts: Arc::new(CostAlertManager::new()),
+        })
+    }
+}
+
+impl GlobalMonitoring {
+    pub async fn new() -> Result<Self> {
+        Ok(Self {
+            metrics_collector: Arc::new(GlobalMetricsCollector::new()),
+            dashboard_aggregator: Arc::new(GlobalDashboard::new()),
+            alert_correlator: Arc::new(GlobalAlertCorrelator::new()),
+            sla_monitor: Arc::new(GlobalSlaMonitor::new()),
+            performance_analyzer: Arc::new(GlobalPerformanceAnalyzer::new()),
+        })
+    }
 }
 
 // Additional method implementations for managers
@@ -1630,5 +1705,301 @@ impl DurationExt for Duration {
 
     fn from_days(days: u64) -> Duration {
         Duration::from_secs(days * 86400)
+    }
+}
+
+// Missing type definitions for global_scaling.rs
+#[derive(Debug)]
+pub struct ScalingController {
+    pub controller_id: String,
+    pub scaling_policies: HashMap<String, ScalingPolicy>,
+    pub metrics_collector: Arc<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ScalingDecisionEngine {
+    pub decision_models: HashMap<String, String>, // Placeholder
+    pub threshold_manager: Arc<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct GlobalResourceAllocator {
+    pub resource_pools: HashMap<String, String>, // Placeholder
+    pub allocation_policies: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct BackupSystem {
+    pub backup_id: String,
+    pub backup_type: BackupType,
+    pub last_backup: Option<SystemTime>,
+}
+
+#[derive(Debug, Clone)]
+pub enum BackupType {
+    Full,
+    Incremental,
+    Differential,
+}
+
+#[derive(Debug)]
+pub struct ReplicationManager {
+    pub replication_policies: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct FailoverCoordinator {
+    pub failover_policies: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct RecoveryMonitor {
+    pub recovery_metrics: HashMap<String, f64>,
+}
+
+#[derive(Debug)]
+pub struct CompliancePolicy {
+    pub policy_id: String,
+    pub requirements: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct DataResidencyEnforcer {
+    pub residency_rules: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct PrivacyController {
+    pub privacy_policies: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct AuditTracker {
+    pub audit_logs: VecDeque<String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct CertificationManager {
+    pub certifications: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ResourceRecommender {
+    pub recommendation_models: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct SpotInstanceManager {
+    pub spot_requests: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct ReservedCapacityOptimizer {
+    pub capacity_reservations: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct CostAlertManager {
+    pub cost_alerts: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct GlobalMetricsCollector {
+    pub metrics_sources: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct GlobalDashboard {
+    pub dashboards: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct GlobalAlertCorrelator {
+    pub correlation_rules: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct GlobalSlaMonitor {
+    pub sla_definitions: HashMap<String, String>, // Placeholder
+}
+
+#[derive(Debug)]
+pub struct GlobalPerformanceAnalyzer {
+    pub performance_models: HashMap<String, String>, // Placeholder
+}
+
+// Implementation for missing types
+impl ScalingController {
+    pub fn new() -> Self {
+        Self {
+            controller_id: Uuid::new_v4().to_string(),
+            scaling_policies: HashMap::new(),
+            metrics_collector: Arc::new("placeholder".to_string()),
+        }
+    }
+}
+
+impl ScalingDecisionEngine {
+    pub fn new() -> Self {
+        Self {
+            decision_models: HashMap::new(),
+            threshold_manager: Arc::new("placeholder".to_string()),
+        }
+    }
+}
+
+impl GlobalResourceAllocator {
+    pub fn new() -> Self {
+        Self {
+            resource_pools: HashMap::new(),
+            allocation_policies: HashMap::new(),
+        }
+    }
+}
+
+impl BackupSystem {
+    pub fn new() -> Self {
+        Self {
+            backup_id: Uuid::new_v4().to_string(),
+            backup_type: BackupType::Full,
+            last_backup: None,
+        }
+    }
+}
+
+impl ReplicationManager {
+    pub fn new() -> Self {
+        Self {
+            replication_policies: HashMap::new(),
+        }
+    }
+}
+
+impl FailoverCoordinator {
+    pub fn new() -> Self {
+        Self {
+            failover_policies: HashMap::new(),
+        }
+    }
+}
+
+impl RecoveryMonitor {
+    pub fn new() -> Self {
+        Self {
+            recovery_metrics: HashMap::new(),
+        }
+    }
+}
+
+impl CompliancePolicy {
+    pub fn new() -> Self {
+        Self {
+            policy_id: Uuid::new_v4().to_string(),
+            requirements: Vec::new(),
+        }
+    }
+}
+
+impl DataResidencyEnforcer {
+    pub fn new() -> Self {
+        Self {
+            residency_rules: HashMap::new(),
+        }
+    }
+}
+
+impl PrivacyController {
+    pub fn new() -> Self {
+        Self {
+            privacy_policies: HashMap::new(),
+        }
+    }
+}
+
+impl AuditTracker {
+    pub fn new() -> Self {
+        Self {
+            audit_logs: VecDeque::new(),
+        }
+    }
+}
+
+impl CertificationManager {
+    pub fn new() -> Self {
+        Self {
+            certifications: HashMap::new(),
+        }
+    }
+}
+
+impl ResourceRecommender {
+    pub fn new() -> Self {
+        Self {
+            recommendation_models: HashMap::new(),
+        }
+    }
+}
+
+impl SpotInstanceManager {
+    pub fn new() -> Self {
+        Self {
+            spot_requests: HashMap::new(),
+        }
+    }
+}
+
+impl ReservedCapacityOptimizer {
+    pub fn new() -> Self {
+        Self {
+            capacity_reservations: HashMap::new(),
+        }
+    }
+}
+
+impl CostAlertManager {
+    pub fn new() -> Self {
+        Self {
+            cost_alerts: HashMap::new(),
+        }
+    }
+}
+
+impl GlobalMetricsCollector {
+    pub fn new() -> Self {
+        Self {
+            metrics_sources: HashMap::new(),
+        }
+    }
+}
+
+impl GlobalDashboard {
+    pub fn new() -> Self {
+        Self {
+            dashboards: HashMap::new(),
+        }
+    }
+}
+
+impl GlobalAlertCorrelator {
+    pub fn new() -> Self {
+        Self {
+            correlation_rules: HashMap::new(),
+        }
+    }
+}
+
+impl GlobalSlaMonitor {
+    pub fn new() -> Self {
+        Self {
+            sla_definitions: HashMap::new(),
+        }
+    }
+}
+
+impl GlobalPerformanceAnalyzer {
+    pub fn new() -> Self {
+        Self {
+            performance_models: HashMap::new(),
+        }
     }
 }

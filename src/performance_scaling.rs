@@ -1363,7 +1363,7 @@ impl RoutingPerformanceTracker {
 }
 
 #[derive(Debug)]
-struct MetricsAggregator;
+pub struct MetricsAggregator;
 impl MetricsAggregator {
     pub fn new() -> Result<Self> {
         Ok(Self)

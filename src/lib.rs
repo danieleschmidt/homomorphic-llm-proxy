@@ -5,22 +5,24 @@
 
 pub mod api_test;
 pub mod config;
-// pub mod deployment; // Temporarily disabled due to compilation issues
+pub mod deployment;
 pub mod enhanced_logging;
+pub mod enhanced_resilience;
 pub mod error;
 pub mod fhe;
-// pub mod global_scaling; // Temporarily disabled due to compilation issues
+pub mod global_config;
+pub mod global_scaling;
 pub mod health;
 pub mod i18n;
 pub mod middleware;
+pub mod ml_optimizer;
 pub mod monitoring;
-// pub mod observability; // Temporarily disabled due to compilation issues
+pub mod observability;
 pub mod performance;
 pub mod performance_optimized;
+pub mod performance_scaling;
 pub mod proxy;
 pub mod resilience;
-pub mod global_config;
-pub mod performance_scaling;
 pub mod scaling;
 pub mod security;
 pub mod security_enhanced;
