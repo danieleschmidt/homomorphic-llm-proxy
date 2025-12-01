@@ -74,10 +74,10 @@ fastrand = "2.1"
 
 # Optional GPU acceleration
 cudarc = { version = "0.17", optional = true, features = ["cuda-version-from-build-system"] }
-criterion = { version = "0.7", features = ["html_reports"], optional = true }
+criterion = { version = "0.8", features = ["html_reports"], optional = true }
 
 [dev-dependencies.criterion]
-version = "0.7"
+version = "0.8"
 features = ["html_reports"]
 
 # FHE libraries (using available alternatives)
